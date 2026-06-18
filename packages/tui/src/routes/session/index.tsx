@@ -2011,6 +2011,7 @@ function BlockTool(props: {
   const renderer = useRenderer()
   const [hover, setHover] = createSignal(false)
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
+  const heading = createMemo(() => blockToolHeading(props.title, props.spinner))
   return (
     <box
       id={props.part ? `tool-block-${props.part.messageID}-${props.part.id}` : undefined}
@@ -2030,17 +2031,17 @@ function BlockTool(props: {
         props.onClick?.()
       }}
     >
-      <Show when={props.title}>
-        {(title) => (
+      <Show when={heading()}>
+        {(text) => (
           <Show
             when={props.spinner}
             fallback={
               <text paddingLeft={3} fg={theme.textMuted}>
-                {title()}
+                {text()}
               </text>
             }
           >
-            <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
+            <Spinner color={theme.textMuted}>{text()}</Spinner>
           </Show>
         )}
       </Show>
@@ -2050,6 +2051,11 @@ function BlockTool(props: {
       </Show>
     </box>
   )
+}
+
+export function blockToolHeading(title?: string, spinner = false) {
+  if (spinner) return title?.replace(/^# /, "") ?? "Running"
+  return title
 }
 
 function Shell(props: ToolProps) {
