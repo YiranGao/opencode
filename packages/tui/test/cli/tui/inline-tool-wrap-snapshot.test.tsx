@@ -54,7 +54,6 @@ const tools: readonly ToolFixture[] = [
 function ShellOutput() {
   return (
     <box id="tool-block-shell" marginTop={1} paddingTop={1} paddingBottom={1} paddingLeft={2} gap={1}>
-      <text paddingLeft={3}># List files</text>
       <box gap={1}>
         <text>$ ls</text>
         <text>file.ts</text>

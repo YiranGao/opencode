@@ -612,7 +612,7 @@ test("omits the current directory from bash titles", async () => {
     const commits = claim(out.renderer)
     try {
       expect(render(commits)).toContain("$ pwd")
-      expect(render(commits)).not.toContain("Shell in .")
+      expect(render(commits)).not.toContain("Running in .")
     } finally {
       destroy(commits)
     }
@@ -675,6 +675,7 @@ test("renders completed bash output with one blank line after the command and be
     take()
 
     const output = lines.join("\n")
+    expect(output).toContain("# Running in /tmp/demo\n$ git status")
     expect(output).toContain("$ git status\n\nOn branch demo")
     expect(output).toContain("nothing to commit, working tree clean\n\noc-run-dev ahead 1")
     expect(output).not.toContain("nothing to commit, working tree clean\n\n\noc-run-dev ahead 1")

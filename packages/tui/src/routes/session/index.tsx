@@ -2001,7 +2001,7 @@ export function InlineToolRow(props: {
 }
 
 function BlockTool(props: {
-  title: string
+  title?: string
   children: JSX.Element
   onClick?: () => void
   part?: ToolPart
@@ -2030,15 +2030,19 @@ function BlockTool(props: {
         props.onClick?.()
       }}
     >
-      <Show
-        when={props.spinner}
-        fallback={
-          <text paddingLeft={3} fg={theme.textMuted}>
-            {props.title}
-          </text>
-        }
-      >
-        <Spinner color={theme.textMuted}>{props.title.replace(/^# /, "")}</Spinner>
+      <Show when={props.title}>
+        {(title) => (
+          <Show
+            when={props.spinner}
+            fallback={
+              <text paddingLeft={3} fg={theme.textMuted}>
+                {title()}
+              </text>
+            }
+          >
+            <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
+          </Show>
+        )}
       </Show>
       {props.children}
       <Show when={error()}>
@@ -2073,8 +2077,8 @@ function Shell(props: ToolProps) {
 
   const title = createMemo(() => {
     const wd = workdirDisplay()
-    if (!wd) return "# Shell"
-    return `# Shell in ${wd}`
+    if (!wd) return
+    return `# Running in ${wd}`
   })
 
   return (

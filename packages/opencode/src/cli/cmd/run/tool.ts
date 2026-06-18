@@ -630,13 +630,11 @@ function scrollBashStart(p: ToolProps<typeof BashTool>): string {
     return `$ ${cmd}`
   }
 
-  const title = dir ? `Shell in ${dir}` : "Shell"
-
   if (!cmd) {
-    return `# ${title}`
+    return dir ? `# Running in ${dir}` : ""
   }
 
-  return `# ${title}\n$ ${cmd}`
+  return `# Running in ${dir}\n$ ${cmd}`
 }
 
 function scrollBashProgress(p: ToolProps<typeof BashTool>): string {
