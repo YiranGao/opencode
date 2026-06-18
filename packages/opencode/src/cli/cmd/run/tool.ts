@@ -624,7 +624,8 @@ function snapQuestion(p: ToolProps<typeof QuestionTool>): ToolSnapshot {
 function scrollBashStart(p: ToolProps<typeof BashTool>): string {
   const cmd = p.input.command ?? ""
   const wd = p.input.workdir ?? ""
-  const dir = wd && wd !== "." ? toolPath(wd) : ""
+  const formatted = wd && wd !== "." ? toolPath(wd) : ""
+  const dir = formatted === "." ? "" : formatted
   if (cmd && !dir) {
     return `$ ${cmd}`
   }

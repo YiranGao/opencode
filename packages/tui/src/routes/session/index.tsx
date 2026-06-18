@@ -2066,7 +2066,9 @@ function Shell(props: ToolProps) {
   const workdirDisplay = createMemo(() => {
     const workdir = stringValue(props.input.workdir)
     if (!workdir || workdir === ".") return undefined
-    return pathFormatter.format(workdir)
+    const formatted = pathFormatter.format(workdir)
+    if (formatted === ".") return undefined
+    return formatted
   })
 
   const title = createMemo(() => {

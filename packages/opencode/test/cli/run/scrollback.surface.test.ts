@@ -589,6 +589,38 @@ test("coalesces same-line tool progress into one snapshot", async () => {
   }
 })
 
+test("omits the current directory from bash titles", async () => {
+  const out = await setup()
+
+  try {
+    await out.scrollback.append(
+      toolCommit({
+        tool: "bash",
+        phase: "start",
+        toolState: "running",
+        state: {
+          status: "running",
+          input: {
+            command: "pwd",
+            workdir: process.cwd(),
+          },
+          time: { start: 1 },
+        },
+      }),
+    )
+
+    const commits = claim(out.renderer)
+    try {
+      expect(render(commits)).toContain("$ pwd")
+      expect(render(commits)).not.toContain("Shell in .")
+    } finally {
+      destroy(commits)
+    }
+  } finally {
+    out.scrollback.destroy()
+  }
+})
+
 test("renders completed bash output with one blank line after the command and before the next group", async () => {
   const out = await setup()
 
