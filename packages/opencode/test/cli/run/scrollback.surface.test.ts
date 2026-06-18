@@ -615,7 +615,6 @@ test("renders completed bash output with one blank line after the command and be
           input: {
             command: "git status",
             workdir: "/tmp/demo",
-            description: "Show git status",
           },
           time: { start: 1 },
         },
@@ -633,7 +632,6 @@ test("renders completed bash output with one blank line after the command and be
           input: {
             command: "git status",
             workdir: "/tmp/demo",
-            description: "Show git status",
           },
           time: { start: 1, end: 2 },
         },
@@ -677,7 +675,6 @@ test("inserts a spacer before the next tool after completed multiline bash outpu
           input: {
             command: "pwd; ls -la",
             workdir: "/tmp/demo",
-            description: "Lists current directory files",
           },
           time: { start: 1 },
         },
@@ -695,7 +692,6 @@ test("inserts a spacer before the next tool after completed multiline bash outpu
           input: {
             command: "pwd; ls -la",
             workdir: "/tmp/demo",
-            description: "Lists current directory files",
           },
           output: ["/tmp/demo", "pwd; ls -la", "/tmp/demo", "total 4", "", ""].join("\n"),
           title: "pwd; ls -la",
@@ -755,7 +751,6 @@ test("does not double-space before completed bash output when inline tool header
           input: {
             command: "ls",
             workdir: "src/cli/cmd/run",
-            description: "Lists files in run directory",
           },
           time: { start: 1 },
         },
@@ -805,7 +800,6 @@ test("does not double-space before completed bash output when inline tool header
           input: {
             command: "ls",
             workdir: "src/cli/cmd/run",
-            description: "Lists files in run directory",
           },
           output: ["src/cli/cmd/run", "ls", "demo.ts", "entry.body.ts", "", ""].join("\n"),
           title: "ls",

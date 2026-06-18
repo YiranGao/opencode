@@ -2070,11 +2070,9 @@ function Shell(props: ToolProps) {
   })
 
   const title = createMemo(() => {
-    const desc = stringValue(props.input.description) ?? "Shell"
     const wd = workdirDisplay()
-    if (!wd) return `# ${desc}`
-    if (desc.includes(wd)) return `# ${desc}`
-    return `# ${desc} in ${wd}`
+    if (!wd) return "# Shell"
+    return `# Shell in ${wd}`
   })
 
   return (
