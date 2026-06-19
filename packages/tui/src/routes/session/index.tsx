@@ -2016,7 +2016,6 @@ function BlockTool(props: {
   const renderer = useRenderer()
   const [hover, setHover] = createSignal(false)
   const error = createMemo(() => (props.part?.state.status === "error" ? props.part.state.error : undefined))
-  const heading = createMemo(() => blockToolHeading(props.title, props.spinner))
   return (
     <box
       id={props.part ? `tool-block-${props.part.messageID}-${props.part.id}` : undefined}
@@ -2036,17 +2035,17 @@ function BlockTool(props: {
         props.onClick?.()
       }}
     >
-      <Show when={heading()}>
-        {(text) => (
+      <Show when={props.title}>
+        {(title) => (
           <Show
             when={props.spinner}
             fallback={
               <text paddingLeft={3} fg={theme.textMuted}>
-                {text()}
+                {title()}
               </text>
             }
           >
-            <Spinner color={theme.textMuted}>{text()}</Spinner>
+            <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
           </Show>
         )}
       </Show>
@@ -2056,11 +2055,6 @@ function BlockTool(props: {
       </Show>
     </box>
   )
-}
-
-export function blockToolHeading(title?: string, spinner = false) {
-  if (spinner) return title?.replace(/^# /, "") ?? "Running"
-  return title
 }
 
 function Shell(props: ToolProps) {
@@ -2098,11 +2092,15 @@ function Shell(props: ToolProps) {
         <BlockTool
           title={title()}
           part={props.part}
-          spinner={isRunning()}
           onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
         >
           <box gap={1}>
-            <text fg={theme.text}>$ {stringValue(props.input.command)}</text>
+            <Show
+              when={isRunning()}
+              fallback={<text fg={theme.text}>$ {stringValue(props.input.command)}</text>}
+            >
+              <Spinner color={theme.text}>{stringValue(props.input.command)}</Spinner>
+            </Show>
             <Show when={output()}>
               <text fg={theme.text}>{limited()}</text>
             </Show>

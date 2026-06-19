@@ -3,7 +3,6 @@ import { createSignal, For, Show } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { testRender, type JSX } from "@opentui/solid"
 import {
-  blockToolHeading,
   formatCompletedSubagentDetail,
   formatSubagentRetry,
   formatSubagentTitle,
@@ -210,12 +209,6 @@ async function renderFrame(component: () => JSX.Element, options: { width: numbe
 }
 
 describe("TUI inline tool wrapping", () => {
-  test("keeps a running label when a block has no heading", () => {
-    expect(blockToolHeading(undefined, true)).toBe("Running")
-    expect(blockToolHeading("# Running in /tmp", true)).toBe("Running in /tmp")
-    expect(blockToolHeading(undefined, false)).toBeUndefined()
-  })
-
   test("falls back for unknown tool names", () => {
     expect(toolDisplay("bash")).toBe("bash")
     expect(toolDisplay("plugin_tool")).toBe("generic")
