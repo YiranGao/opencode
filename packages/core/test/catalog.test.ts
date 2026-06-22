@@ -11,7 +11,11 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
 import { AbsolutePath } from "@opencode-ai/core/schema"
 import { location } from "./fixture/location"
 import { testEffect } from "./lib/effect"
-import { required } from "./plugin/provider-helper"
+
+function required<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error("Expected value")
+  return value
+}
 
 const locationLayer = Layer.succeed(
   Location.Service,
