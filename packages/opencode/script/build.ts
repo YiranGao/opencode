@@ -23,12 +23,21 @@ const skipInstall = process.argv.includes("--skip-install")
 const sourcemapsFlag = process.argv.includes("--sourcemaps")
 const plugin = createSolidTransformPlugin()
 const skipEmbedWebUi = process.argv.includes("--skip-embed-web-ui")
+const forceWebUiBuild = process.argv.includes("--force-web-ui-build")
+const targetFlag = process.argv.find((a) => a.startsWith("--target="))
+const targetFilter = targetFlag ? targetFlag.split("=")[1] : null
 
 const createEmbeddedWebUIBundle = async () => {
   console.log(`Building Web UI to embed in the binary`)
   const appDir = path.join(import.meta.dirname, "../../app")
   const dist = path.join(appDir, "dist")
-  await $`OPENCODE_CHANNEL=${Script.channel} bun run --cwd ${appDir} build`
+  // 默认行为：dist 目录已有构建产物时跳过 vite build 以节省时间
+  // 使用 --force-web-ui-build 强制重新构建
+  if (!forceWebUiBuild && fs.existsSync(dist) && fs.readdirSync(dist).length > 0) {
+    console.log(`  Skipping vite build (using existing dist, use --force-web-ui-build to rebuild)`)
+  } else {
+    await $`OPENCODE_CHANNEL=${Script.channel} bun run --cwd ${appDir} build`
+  }
   const files = (await Array.fromAsync(new Bun.Glob("**/*").scan({ cwd: dist })))
     .map((file) => file.replaceAll("\\", "/"))
     .filter((file) => !file.endsWith(".map"))
@@ -113,26 +122,58 @@ const allTargets: {
   },
 ]
 
-const targets = singleFlag
+const targets = targetFilter
   ? allTargets.filter((item) => {
-      if (item.os !== process.platform || item.arch !== process.arch) {
-        return false
-      }
-
-      // When building for the current platform, prefer a single native binary by default.
-      // Baseline binaries require additional Bun artifacts and can be flaky to download.
-      if (item.avx2 === false) {
-        return baselineFlag
-      }
-
-      // also skip abi-specific builds for the same reason
-      if (item.abi !== undefined) {
-        return false
-      }
-
-      return true
+      const name = [
+        pkg.name,
+        item.os === "win32" ? "windows" : item.os,
+        item.arch,
+        item.avx2 === false ? "baseline" : undefined,
+        item.abi === undefined ? undefined : item.abi,
+      ]
+        .filter(Boolean)
+        .join("-")
+      return name === `${pkg.name}-${targetFilter}`
     })
-  : allTargets
+  : singleFlag
+    ? allTargets.filter((item) => {
+        if (item.os !== process.platform || item.arch !== process.arch) {
+          return false
+        }
+
+        // When building for the current platform, prefer a single native binary by default.
+        // Baseline binaries require additional Bun artifacts and can be flaky to download.
+        if (item.avx2 === false) {
+          return baselineFlag
+        }
+
+        // also skip abi-specific builds for the same reason
+        if (item.abi !== undefined) {
+          return false
+        }
+
+        return true
+      })
+    : allTargets
+
+// 如果指定了 --target= 但没有匹配的目标，输出错误并退出
+if (targetFilter && targets.length === 0) {
+  console.error(`Error: No matching target for: ${targetFilter}`)
+  console.error(`Available targets:`)
+  for (const item of allTargets) {
+    const name = [
+      pkg.name,
+      item.os === "win32" ? "windows" : item.os,
+      item.arch,
+      item.avx2 === false ? "baseline" : undefined,
+      item.abi === undefined ? undefined : item.abi,
+    ]
+      .filter(Boolean)
+      .join("-")
+    console.error(`  ${name.replace(pkg.name + "-", "")}`)
+  }
+  process.exit(1)
+}
 
 await $`rm -rf dist`
 
@@ -165,6 +206,22 @@ for (const item of targets) {
   const bunfsRoot = item.os === "win32" ? "B:/~BUN/root/" : "/$bunfs/root/"
   const workerRelativePath = path.relative(dir, parserWorker).replaceAll("\\", "/")
 
+  // Embed offline parser resources into binary (when available)
+  const offlineCacheDir = path.resolve(dir, "../../offline-cache/parsers")
+  const parserExtraFiles: Record<string, string> = {}
+  if (fs.existsSync(offlineCacheDir)) {
+    const allParserFiles = await Array.fromAsync(
+      new Bun.Glob("**/*.{wasm,scm}").scan({ cwd: offlineCacheDir }),
+    )
+    for (const file of allParserFiles) {
+      const src = path.join(offlineCacheDir, file)
+      parserExtraFiles[`parsers/${file}`] = await Bun.file(src).text()
+    }
+    if (Object.keys(parserExtraFiles).length > 0) {
+      console.log(`  Embedded ${Object.keys(parserExtraFiles).length} offline parser files`)
+    }
+  }
+
   await Bun.build({
     conditions: ["bun", "node"],
     tsconfig: "./tsconfig.json",
@@ -184,7 +241,10 @@ for (const item of targets) {
       execArgv: [`--user-agent=opencode/${Script.version}`, "--use-system-ca", "--"],
       windows: {},
     },
-    files: embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {},
+    files: {
+      ...(embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {}),
+      ...parserExtraFiles,
+    },
     entrypoints: ["./src/index.ts", parserWorker, workerPath, ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : [])],
     define: {
       FFF_LIBC: JSON.stringify(item.abi === "musl" ? "musl" : "gnu"),
