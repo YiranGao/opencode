@@ -1,0 +1,29 @@
+ARG VERSION
+
+FROM ubuntu:22.04 AS base
+
+ARG BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=${BUN_RUNTIME_TRANSPILER_CACHE_PATH}
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libgcc-s1 \
+        libstdc++6 \
+        ripgrep && \
+    rm -rf /var/lib/apt/lists/*
+
+FROM base AS build-amd64
+ARG VERSION
+COPY lingxicode-offline-${VERSION}-kylin-x64 /lingxicode
+
+FROM base AS build-arm64
+ARG VERSION
+COPY lingxicode-offline-${VERSION}-kylin-arm64 /lingxicode
+
+ARG TARGETARCH
+FROM build-${TARGETARCH}
+
+RUN chmod -R +x /lingxicode/
+
+RUN /lingxicode/lingxicode.sh --version
+ENTRYPOINT ["/lingxicode/lingxicode.sh"]
