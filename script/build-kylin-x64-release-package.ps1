@@ -74,6 +74,21 @@ if (Test-Path $ArtifactDirAttached) {
     Write-Host "Copied attached files"
 }
 
+$otelPluginPath = Join-Path $OutputDir "config\plugins\opencode-plugin-otel.js"
+if (-not (Test-Path $otelPluginPath)) {
+    Write-Error "OpenTelemetry plugin not found: $otelPluginPath"
+    exit 1
+}
+Write-Host "  OpenTelemetry plugin found: $otelPluginPath" -ForegroundColor Green
+
+$rgPath = Join-Path $OutputDirBin "rg"
+if (-not (Test-Path $rgPath)) {
+    Write-Error "ripgrep not found: $rgPath"
+    exit 1
+}
+
+Write-Host "  ripgrep found: $rgPath" -ForegroundColor Green
+
 # ── 复制解析器 ────────────────────────────────────────
 Write-Host "`n[2/3] Copying offline parsers..." -ForegroundColor Yellow
 if (Test-Path $ParsersCacheDir) {
@@ -169,6 +184,6 @@ Write-Host ""
 Write-Host "  Deploy to Kylin OS:" -ForegroundColor Cyan
 Write-Host "    1. Copy $tarName to target machine" -ForegroundColor Gray
 Write-Host "    2. tar -xzf $tarName" -ForegroundColor Gray
-Write-Host "    3. chmod +x lingxicode.sh bin/opencode" -ForegroundColor Gray
+Write-Host "    3. chmod +x lingxicode.sh lingxicode-harness.sh scripts/deploy-plugins.sh bin/opencode bin/rg" -ForegroundColor Gray
 Write-Host "    4. export ENTERPRISE_API_KEY='your-key'" -ForegroundColor Gray
 Write-Host "    5. ./lingxicode.sh" -ForegroundColor Gray

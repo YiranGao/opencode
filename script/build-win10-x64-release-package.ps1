@@ -265,6 +265,27 @@ if (Test-Path $ArtifactDirAttached) {
     Copy-Item -Path "$ArtifactDirAttached\*" -Destination $OutputDir -Recurse -Force
     Write-Info "Copied attached files"
 }
+
+$OtelPluginPath = Join-Path $OutputDir "config\plugins\opencode-plugin-otel.js"
+if (-not (Test-Path $OtelPluginPath)) {
+    Write-Fail "OpenTelemetry plugin not found: $OtelPluginPath"
+    exit 1
+}
+Write-FileEntry "config/plugins/opencode-plugin-otel.js" (Get-Item $OtelPluginPath).Length
+
+$RgPath = Join-Path $OutputDirBin "rg.exe"
+if (-not (Test-Path $RgPath)) {
+    Write-Fail "ripgrep not found: $RgPath"
+    exit 1
+}
+# $RgSourcePath = Join-Path $ArtifactDirAttached "bin\rg.exe"
+# $rgVersionOutput = & $RgSourcePath --version 2>&1
+# if ($LASTEXITCODE -ne 0) {
+#     Write-Fail "ripgrep smoke test failed: $rgVersionOutput"
+#     exit 1
+# }
+Write-FileEntry "rg.exe" (Get-Item $RgPath).Length
+# Write-Ok "ripgrep smoke test passed: $($rgVersionOutput | Select-Object -First 1)"
 Write-StepDone
 
 # --- Step 5: Package ZIP ---
