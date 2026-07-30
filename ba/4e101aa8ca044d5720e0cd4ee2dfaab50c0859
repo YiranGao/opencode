@@ -1,0 +1,23 @@
+artifacts/kylin-arm64/attached/config/plugins/opencode-plugin-otel.js
+  s_82cdd1631414e4::t_d943219dafce39 70050,70974,70983-70993,71001,71207-71208,71450-71454,71500,91825,91873,91982
+artifacts/kylin-x64/attached/config/plugins/opencode-plugin-otel.js
+  s_82cdd1631414e4::t_9dc63fe0ff1dbf 70050,70974,70983-70993,71001,71207-71208,71450-71454,71500,91825,91873,91982
+artifacts/win10-x64/attached/config/plugins/opencode-plugin-otel.js
+  s_82cdd1631414e4::t_3b8554d45ea721 70050,70974,70983-70993,71001,71207-71208,71450-71454,71500,91825,91873,91982
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "ba4e101aa8ca044d5720e0cd4ee2dfaab50c0859",
+  "prompts": {},
+  "sessions": {
+    "s_82cdd1631414e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fadd6-a050-7343-b158-b4d4c114aba8",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "happy <sxh139726845@163.com>"
+    }
+  }
+}
