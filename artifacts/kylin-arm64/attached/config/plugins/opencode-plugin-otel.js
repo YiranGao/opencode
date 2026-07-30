@@ -70047,7 +70047,7 @@ function loadConfig(options = {}) {
     endpoint: pickString(resolvedOptions.endpoint) ?? process.env["OPENCODE_OTLP_ENDPOINT"] ?? "http://localhost:4317",
     userIDEnabled: pickBoolean(resolvedOptions.userIDEnabled) ?? pickBooleanString(process.env["OPENCODE_USER_ID_ENABLED"]) ?? true,
     userIDEndpoint: pickString(resolvedOptions.userIDEndpoint) ?? process.env["OPENCODE_USER_ID_ENDPOINT"] ?? "queryUserByToken",
-    userIDAuthHeader: pickString(resolvedOptions.userIDAuthHeader) ?? process.env["OPENCODE_USER_ID_AUTH_HEADER"],
+    userIDAuthHeader: pickString(resolvedOptions.userIDAuthHeader) ?? process.env["OPENCODE_USER_ID-X-Blackbox-Auth"],
     userIDTimeout: pickPositiveInt(resolvedOptions.userIDTimeout) ?? parseEnvInt("OPENCODE_USER_ID_TIMEOUT", DEFAULT_USER_ID_TIMEOUT),
     userIDRetryCount: pickNonNegativeInt(resolvedOptions.userIDRetryCount, MAX_USER_ID_RETRY_COUNT) ?? parseEnvNonNegativeInt("OPENCODE_USER_ID_RETRY_COUNT", DEFAULT_USER_ID_RETRY_COUNT, MAX_USER_ID_RETRY_COUNT),
     userIDCooldown: pickNonNegativeInt(resolvedOptions.userIDCooldown) ?? parseEnvNonNegativeInt("OPENCODE_USER_ID_COOLDOWN", DEFAULT_USER_ID_COOLDOWN),
@@ -70971,6 +70971,7 @@ function agentAttrs(agentName, agentType) {
 function endInteractionSpan(interactionID, sessionID, status, ctx, endTime, error) {
   const span = ctx.interactionSpans.get(interactionID);
   const totals = ctx.interactionTotals.get(interactionID);
+  const completion = ctx.interactionCompletions.get(interactionID);
   if (span) {
     if (totals) {
       span.setAttributes({
@@ -70979,6 +70980,17 @@ function endInteractionSpan(interactionID, sessionID, status, ctx, endTime, erro
         "interaction.total_messages": totals.messages
       });
     }
+    if (completion?.output !== undefined) {
+      span.setAttributes({
+        [OUTPUT_VALUE]: completion.output,
+        [OUTPUT_MIME_TYPE]: MimeType.TEXT
+      });
+      const run = ctx.activeRunSpans.get(sessionID);
+      const interactionIO = run?.interactionIO.get(interactionID);
+      if (run && interactionIO) {
+        run.interactionIO.set(interactionID, { ...interactionIO, output: completion.output });
+      }
+    }
     span.setStatus(error ? { code: status, message: error } : { code: status });
     if (error)
       span.setAttribute("error", error);
@@ -70986,6 +70998,7 @@ function endInteractionSpan(interactionID, sessionID, status, ctx, endTime, erro
     ctx.interactionSpans.delete(interactionID);
   }
   ctx.interactionTotals.delete(interactionID);
+  ctx.interactionCompletions.delete(interactionID);
   if (ctx.activeInteractions.get(sessionID) === interactionID) {
     ctx.activeInteractions.delete(sessionID);
   }
@@ -71050,7 +71063,6 @@ function handleInteractionStarted(interactionID, sessionID, agent, promptText, m
   if (!existing && ctx.interactionSpanContexts.has(interactionID))
     return;
   ctx.activeInteractions.set(sessionID, interactionID);
-  ctx.pendingInteractions.delete(sessionID);
   if (promptText)
     setBoundedMap(ctx.interactionInputs, interactionID, promptText);
   if (!isTraceEnabled("session", ctx))
@@ -71150,7 +71162,6 @@ function sweepSession(sessionID, ctx) {
       ctx.pendingToolSpans.delete(key);
     }
   }
-  ctx.pendingInteractions.delete(sessionID);
   ctx.pendingSubagentRuns.delete(sessionID);
   for (const [childSessionID, details] of ctx.pendingSubagentRuns) {
     if (details.parentSessionID === sessionID)
@@ -71193,7 +71204,8 @@ function endInteractions(sessionID, status, ctx, error) {
     const hasPendingAssistant = [...ctx.pendingAssistantInteractions.values()].some((pending) => pending.sessionID === sessionID && pending.interactionID === interactionID);
     if (hasPendingAssistant)
       continue;
-    endInteractionSpan(interactionID, sessionID, status, ctx, undefined, error);
+    const endTime = status === import_api4.SpanStatusCode.OK ? ctx.interactionCompletions.get(interactionID)?.endTime : undefined;
+    endInteractionSpan(interactionID, sessionID, status, ctx, endTime, error);
   }
 }
 function handleSessionIdle(e, ctx) {
@@ -71435,17 +71447,11 @@ function handleMessageUpdated(e, ctx) {
     cost_usd: assistant.cost
   });
   const outputText = ctx.messageOutputs.get(msgKey);
-  if (outputText !== undefined) {
-    const outputAttrs = {
-      [OUTPUT_VALUE]: outputText,
-      [OUTPUT_MIME_TYPE]: MimeType.TEXT
-    };
-    ctx.interactionSpans.get(interactionID)?.setAttributes(outputAttrs);
-    const run = ctx.activeRunSpans.get(sessionID);
-    const interactionIO = run?.interactionIO.get(interactionID);
-    if (run && interactionIO) {
-      run.interactionIO.set(interactionID, { ...interactionIO, output: outputText });
-    }
+  if (assistant.summary !== true && ctx.interactionSpans.has(interactionID)) {
+    setBoundedMap(ctx.interactionCompletions, interactionID, {
+      endTime: assistant.time.completed,
+      output: outputText
+    });
   }
   const msgSpan = ctx.messageSpans.get(msgKey);
   if (msgSpan) {
@@ -71491,9 +71497,7 @@ function handleMessageUpdated(e, ctx) {
   }
   ctx.llmTelemetryOutputs.delete(msgKey);
   ctx.pendingAssistantInteractions.delete(msgKey);
-  const hasPendingAssistant = [...ctx.pendingAssistantInteractions.values()].some((pending) => pending.sessionID === sessionID && pending.interactionID === interactionID);
-  const completesInteraction = assistant.error || assistant.summary !== true && assistant.finish !== "tool-calls" && assistant.finish !== "unknown";
-  if (completesInteraction && !hasPendingAssistant) {
+  if (assistant.error || !ctx.activeRunSpans.has(sessionID) && ctx.interactionSpans.has(interactionID)) {
     const interactionError = assistant.error ? errorSummary(assistant.error) : undefined;
     endInteractionSpan(interactionID, sessionID, interactionError ? import_api5.SpanStatusCode.ERROR : import_api5.SpanStatusCode.OK, ctx, assistant.time.completed, interactionError);
   }
@@ -91815,10 +91819,10 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
   const activeInteractions = new Map;
   const assistantInteractions = new Map;
   const pendingAssistantInteractions = new Map;
-  const pendingInteractions = new Map;
   const pendingSubagentRuns = new Map;
   const interactionInputs = new Map;
   const interactionTotals = new Map;
+  const interactionCompletions = new Map;
   const sessionParents = new Map;
   const messageSpans = new Map;
   const messageOutputs = new Map;
@@ -91863,10 +91867,10 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
     activeInteractions,
     assistantInteractions,
     pendingAssistantInteractions,
-    pendingInteractions,
     pendingSubagentRuns,
     interactionInputs,
     interactionTotals,
+    interactionCompletions,
     sessionParents,
     messageSpans,
     messageOutputs,
@@ -91975,19 +91979,7 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
       }).filter(Boolean).join(`
 `);
       const model = input.model ? `${input.model.providerID}/${input.model.modelID}` : "unknown";
-      if (input.messageID) {
-        await log("info", "chat.message, input.messageID present");
-        handleInteractionStarted(input.messageID, input.sessionID, agent, promptText, model, startTime, ctx, details);
-      } else {
-        await log("info", "chat.message, input.messageID not present");
-        setBoundedMap(pendingInteractions, input.sessionID, {
-          agent,
-          promptText,
-          model,
-          startTime,
-          details
-        });
-      }
+      handleInteractionStarted(output.message.id, input.sessionID, agent, promptText, model, startTime, ctx, details);
       const promptLength = promptText.length;
       emitLog({
         severityNumber: import_api_logs6.SeverityNumber.INFO,
@@ -92038,11 +92030,6 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
           const msgEvt = event;
           const info = msgEvt.properties.info;
           if (info.role === "user") {
-            const pendingInteraction = pendingInteractions.get(info.sessionID);
-            if (pendingInteraction || activeInteractions.get(info.sessionID) !== info.id) {
-              const details = pendingInteraction?.details ?? takeRunDetails(info.sessionID);
-              handleInteractionStarted(info.id, info.sessionID, pendingInteraction?.agent ?? info.agent, pendingInteraction?.promptText ?? "", pendingInteraction?.model ?? `${info.model.providerID}/${info.model.modelID}`, pendingInteraction?.startTime ?? info.time.created, ctx, details);
-            }
             break;
           }
           if (info.role === "assistant" && !info.time?.completed) {
