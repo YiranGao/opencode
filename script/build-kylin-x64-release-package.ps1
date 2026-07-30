@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     打包 LINGXI CODE 麒麟 OS V10 x64 离线部署包
 .DESCRIPTION
@@ -80,6 +80,13 @@ if (-not (Test-Path $otelPluginPath)) {
     exit 1
 }
 Write-Host "  OpenTelemetry plugin found: $otelPluginPath" -ForegroundColor Green
+
+$diffDetailPluginPath = Join-Path $OutputDir "config\plugins\opencode-diff-detail.js"
+if (-not (Test-Path $diffDetailPluginPath)) {
+    Write-Error "diff-detail plugin not found: $diffDetailPluginPath"
+    exit 1
+}
+Write-Host "  diff-detail plugin found: $diffDetailPluginPath" -ForegroundColor Green
 
 $rgPath = Join-Path $OutputDirBin "rg"
 if (-not (Test-Path $rgPath)) {

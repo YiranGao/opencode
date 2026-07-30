@@ -273,6 +273,13 @@ if (-not (Test-Path $OtelPluginPath)) {
 }
 Write-FileEntry "config/plugins/opencode-plugin-otel.js" (Get-Item $OtelPluginPath).Length
 
+$DiffDetailPluginPath = Join-Path $OutputDir "config\plugins\opencode-diff-detail.js"
+if (-not (Test-Path $DiffDetailPluginPath)) {
+    Write-Fail "diff-detail plugin not found: $DiffDetailPluginPath"
+    exit 1
+}
+Write-FileEntry "config/plugins/opencode-diff-detail.js" (Get-Item $DiffDetailPluginPath).Length
+
 $RgPath = Join-Path $OutputDirBin "rg.exe"
 if (-not (Test-Path $RgPath)) {
     Write-Fail "ripgrep not found: $RgPath"

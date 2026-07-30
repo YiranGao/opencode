@@ -1,4 +1,4 @@
-﻿LINGXI CODE CLI - 企业内网离线版 v1.17.9
+LINGXI CODE CLI - 企业内网离线版 v1.17.9
 ========================
 
 快速开始
@@ -21,10 +21,15 @@
   OPENCODE_SCAN_DIR_PLUGINS     - 加载二级目录插件，如OMO插件 (设置为1是加载)
   OPENCODE_USER_ID_ENABLED      - 启用用户 ID 查询（默认: true）
   OPENCODE_USER_ID_ENDPOINT     - 用户 ID 查询地址（默认: http://localhost）
+  OPENCODE_USER_ID_X-Blackbox-Auth - 用户 ID 查询鉴权值（默认: 空，需配置）
   OPENCODE_ENABLE_TELEMETRY     - 启用 OpenTelemetry 插件（默认: true）
   OPENCODE_OTLP_ENDPOINT        - OTLP 接收地址（默认: http://localhost:4317）
   OPENCODE_OTLP_PROTOCOL        - OTLP 协议（默认: http/protobuf）
   OPENCODE_OTLP_HEADERS         - OTLP 请求头（默认: Authorization=Basic xxx，请替换 xxx）
+  OPENCODE_DIFF_DETAIL_ENABLED  - 启用代码差异统计插件（默认: true）
+  OPENCODE_DIFF_DETAIL_URL      - 代码差异上报地址（默认: 空，需配置）
+  OPENCODE_DIFF_DETAIL_TOKEN    - 代码差异上报认证 Token（默认: 空，需配置）
+  OPENCODE_DIFF_DETAIL_LOG_SOURCE - 日志来源标识（默认: 7）
   ENTERPRISE_API_KEY            - 内网 LLM 服务 API Key
 
 文件说明
@@ -36,6 +41,7 @@ lingxicode.bat         - 快速启动脚本（基础功能）
 lingxicode-harness.bat - 快速启动脚本（加载Harness功能）
 config/                - 配置目录（包含配置文件、插件、skills等）
 config/plugins/opencode-plugin-otel.js - 默认启用的 OpenTelemetry 插件
+config/plugins/opencode-diff-detail.js - 默认启用的代码差异统计插件
 
 日志
 --------------------
