@@ -1,0 +1,23 @@
+artifacts/kylin-arm64/attached/config/plugins/opencode-plugin-otel.js
+  s_82cdd1631414e4::t_85b34af85a4593 70050
+artifacts/kylin-x64/attached/config/plugins/opencode-plugin-otel.js
+  s_82cdd1631414e4::t_df9363e07ef3e2 70050
+artifacts/win10-x64/attached/config/plugins/opencode-plugin-otel.js
+  s_82cdd1631414e4::t_9c1a5c0c9f6f1c 70050
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "4312ef122fb05b5db3cba67c6ac156baf84d283f",
+  "prompts": {},
+  "sessions": {
+    "s_82cdd1631414e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fadd6-a050-7343-b158-b4d4c114aba8",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "happy <sxh139726845@163.com>"
+    }
+  }
+}
