@@ -70047,7 +70047,7 @@ function loadConfig(options = {}) {
     endpoint: pickString(resolvedOptions.endpoint) ?? process.env["OPENCODE_OTLP_ENDPOINT"] ?? "http://localhost:4317",
     userIDEnabled: pickBoolean(resolvedOptions.userIDEnabled) ?? pickBooleanString(process.env["OPENCODE_USER_ID_ENABLED"]) ?? true,
     userIDEndpoint: pickString(resolvedOptions.userIDEndpoint) ?? process.env["OPENCODE_USER_ID_ENDPOINT"] ?? "queryUserByToken",
-    userIDAuthHeader: pickString(resolvedOptions.userIDAuthHeader) ?? process.env["OPENCODE_USER_ID-X-Blackbox-Auth"],
+    userIDAuthHeader: pickString(resolvedOptions.userIDAuthHeader) ?? process.env["OPENCODE_USER_ID_X-Blackbox-Auth"],
     userIDTimeout: pickPositiveInt(resolvedOptions.userIDTimeout) ?? parseEnvInt("OPENCODE_USER_ID_TIMEOUT", DEFAULT_USER_ID_TIMEOUT),
     userIDRetryCount: pickNonNegativeInt(resolvedOptions.userIDRetryCount, MAX_USER_ID_RETRY_COUNT) ?? parseEnvNonNegativeInt("OPENCODE_USER_ID_RETRY_COUNT", DEFAULT_USER_ID_RETRY_COUNT, MAX_USER_ID_RETRY_COUNT),
     userIDCooldown: pickNonNegativeInt(resolvedOptions.userIDCooldown) ?? parseEnvNonNegativeInt("OPENCODE_USER_ID_COOLDOWN", DEFAULT_USER_ID_COOLDOWN),
