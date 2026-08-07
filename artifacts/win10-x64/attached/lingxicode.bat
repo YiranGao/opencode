@@ -16,8 +16,7 @@ REM Preseed dependency metadata so offline startup does not invoke npm for the d
 set "DEFAULT_CONFIG_DIR=%USERPROFILE%\.config\opencode"
 if defined XDG_CONFIG_HOME set "DEFAULT_CONFIG_DIR=%XDG_CONFIG_HOME%\opencode"
 if not exist "%DEFAULT_CONFIG_DIR%\node_modules" mkdir "%DEFAULT_CONFIG_DIR%\node_modules"
-copy /Y "%~dp0config\package.json" "%DEFAULT_CONFIG_DIR%\package.json" >nul
-copy /Y "%~dp0config\package-lock.json" "%DEFAULT_CONFIG_DIR%\package-lock.json" >nul
+if exist "%~dp0config\package-lock.json" copy /Y "%~dp0config\package-lock.json" "%DEFAULT_CONFIG_DIR%\package-lock.json" >nul
 if not defined OPENCODE_USER_ID_ENABLED set "OPENCODE_USER_ID_ENABLED=true"
 if not defined OPENCODE_ENABLE_TELEMETRY set "OPENCODE_ENABLE_TELEMETRY=true"
 if not defined OPENCODE_OTLP_ENDPOINT set "OPENCODE_OTLP_ENDPOINT=http://localhost:4317"

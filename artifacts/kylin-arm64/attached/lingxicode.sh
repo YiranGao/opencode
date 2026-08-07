@@ -15,7 +15,9 @@ export OPENCODE_SCAN_DIR_PLUGINS=0
 # Preseed dependency metadata so offline startup does not invoke npm for the default config directory.
 DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
 mkdir -p "$DEFAULT_CONFIG_DIR/node_modules"
-cp "$SCRIPT_DIR/config/package.json" "$SCRIPT_DIR/config/package-lock.json" "$DEFAULT_CONFIG_DIR/"
+if [ -f "$SCRIPT_DIR/config/package-lock.json" ]; then
+  cp "$SCRIPT_DIR/config/package-lock.json" "$DEFAULT_CONFIG_DIR/"
+fi
 export OPENCODE_USER_ID_ENABLED="${OPENCODE_USER_ID_ENABLED:-true}"
 export OPENCODE_ENABLE_TELEMETRY="${OPENCODE_ENABLE_TELEMETRY:-true}"
 export OPENCODE_OTLP_ENDPOINT="${OPENCODE_OTLP_ENDPOINT:-http://localhost:4317}"
