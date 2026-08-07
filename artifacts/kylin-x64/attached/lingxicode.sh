@@ -9,8 +9,13 @@ export OPENCODE_PARSERS_DIR=$SCRIPT_DIR/parsers
 export OPENCODE_DISABLE_AUTOUPDATE=true
 export OPENCODE_DISABLE_MODELS_FETCH=true
 export OPENCODE_DISABLE_LSP_DOWNLOAD=true
+export NPM_CONFIG_FETCH_RETRIES=0
 export OMO_DISABLE_POSTHOG=1
 export OPENCODE_SCAN_DIR_PLUGINS=0
+# Preseed dependency metadata so offline startup does not invoke npm for the default config directory.
+DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+mkdir -p "$DEFAULT_CONFIG_DIR/node_modules"
+cp "$SCRIPT_DIR/config/package.json" "$SCRIPT_DIR/config/package-lock.json" "$DEFAULT_CONFIG_DIR/"
 export OPENCODE_USER_ID_ENABLED="${OPENCODE_USER_ID_ENABLED:-true}"
 export OPENCODE_USER_ID_ENDPOINT="${OPENCODE_USER_ID_ENDPOINT:-http://localhost}"
 export OPENCODE_USER_ID_X-Blackbox-Auth="${OPENCODE_USER_ID_X-Blackbox-Auth:-}"
