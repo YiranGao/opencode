@@ -1,0 +1,26 @@
+artifacts/kylin-x64/attached/lingxicode.sh
+  s_81fd352fd19e47::t_c1a9232a666d35 15
+  s_81fd352fd19e47::t_f935a54de8025a 12,16-18
+artifacts/win10-x64/attached/lingxicode.bat
+  s_81fd352fd19e47::t_f935a54de8025a 10,16-20
+  s_81fd352fd19e47::t_c1a9232a666d35 15
+artifacts/kylin-arm64/attached/lingxicode.sh
+  s_81fd352fd19e47::t_f935a54de8025a 12,16-18
+  s_81fd352fd19e47::t_c1a9232a666d35 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ed3db97ab9d57c74bf6617538ab7fa06a27f6b26",
+  "prompts": {},
+  "sessions": {
+    "s_81fd352fd19e47": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fdb92-3cba-7290-b4aa-422691ba6389",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "happy <sxh139726845@163.com>"
+    }
+  }
+}
