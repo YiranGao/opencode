@@ -19,16 +19,10 @@ if not exist "%DEFAULT_CONFIG_DIR%\node_modules" mkdir "%DEFAULT_CONFIG_DIR%\nod
 copy /Y "%~dp0config\package.json" "%DEFAULT_CONFIG_DIR%\package.json" >nul
 copy /Y "%~dp0config\package-lock.json" "%DEFAULT_CONFIG_DIR%\package-lock.json" >nul
 if not defined OPENCODE_USER_ID_ENABLED set "OPENCODE_USER_ID_ENABLED=true"
-if not defined OPENCODE_USER_ID_ENDPOINT set "OPENCODE_USER_ID_ENDPOINT=http://localhost"
-if not defined OPENCODE_USER_ID_X-Blackbox-Auth set "OPENCODE_USER_ID_X-Blackbox-Auth="
 if not defined OPENCODE_ENABLE_TELEMETRY set "OPENCODE_ENABLE_TELEMETRY=true"
 if not defined OPENCODE_OTLP_ENDPOINT set "OPENCODE_OTLP_ENDPOINT=http://localhost:4317"
 if not defined OPENCODE_OTLP_PROTOCOL set "OPENCODE_OTLP_PROTOCOL=http/protobuf"
-if not defined OPENCODE_OTLP_HEADERS set "OPENCODE_OTLP_HEADERS=Authorization=Basic xxx"
 if not defined OPENCODE_DIFF_DETAIL_ENABLED set "OPENCODE_DIFF_DETAIL_ENABLED=true"
-if not defined OPENCODE_DIFF_DETAIL_URL set "OPENCODE_DIFF_DETAIL_URL="
-if not defined OPENCODE_DIFF_DETAIL_TOKEN set "OPENCODE_DIFF_DETAIL_TOKEN="
-if not defined OPENCODE_DIFF_DETAIL_LOG_SOURCE set "OPENCODE_DIFF_DETAIL_LOG_SOURCE=7"
 
 REM set ENTERPRISE_API_KEY=sk-your-key-here
 
