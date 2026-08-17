@@ -52126,7 +52126,7 @@ var require_index_incubating = __commonJS((exports) => {
 });
 
 // src/index.ts
-var import_api6 = __toESM(require_src(), 1);
+var import_api9 = __toESM(require_src(), 1);
 // package.json
 var package_default = {
   author: "DEVtheOPS",
@@ -52151,9 +52151,9 @@ var package_default = {
   description: "OpenTelemetry tracing plugin for opencode CLI",
   devDependencies: {
     "@types/bun": "latest",
-    "@typescript-eslint/parser": "^8.62.0",
-    eslint: "^9.24.0",
-    "eslint-plugin-jsdoc": "^50.6.11"
+    "eslint-plugin-jsdoc": "^50.6.11",
+    oxfmt: "^0.61.0",
+    oxlint: "^1.76.0"
   },
   exports: {
     ".": {
@@ -52194,13 +52194,17 @@ var package_default = {
   scripts: {
     build: "bun build src/index.ts --outdir=./dist --target=node && tsc -p tsconfig.build.json",
     "check:jsdoc-coverage": "bun scripts/check-jsdoc-coverage.mjs",
-    lint: "bun --bun eslint .",
+    format: "oxfmt .",
+    "format:check": "oxfmt --check .",
+    lint: "oxlint .",
+    "lint:fix": "oxlint . --fix",
     prepack: "bun run build",
+    "test:e2e": "bun test e2e --timeout 60000",
     typecheck: "tsc --noEmit"
   },
   type: "module",
   types: "dist/index.d.ts",
-  version: "1.4.0"
+  version: "1.5.0"
 };
 
 // src/types.ts
@@ -52209,8 +52213,6 @@ var MAX_PENDING = 500;
 var LLM_TELEMETRY_REQUEST_HEADER = "x-opencode-plugin-otel-request-id";
 
 // src/config.ts
-var TRACE_TYPES = ["llm", "tool"];
-var TRACE_DISABLE_ALL_VALUES = new Set(["all", "*", "true", "1"]);
 var DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT = 4096;
 var DEFAULT_USER_ID_TIMEOUT = 3000;
 var DEFAULT_USER_ID_RETRY_COUNT = 2;
@@ -52218,21 +52220,28 @@ var DEFAULT_USER_ID_COOLDOWN = 5 * 60 * 1000;
 var MAX_USER_ID_RETRY_COUNT = 10;
 function parseAttributePairs(raw) {
   const attrs = {};
-  if (!raw)
+  if (!raw) {
     return attrs;
+  }
   for (const pair of raw.split(",")) {
     const idx = pair.indexOf("=");
-    if (idx <= 0)
+    if (idx <= 0) {
       continue;
+    }
     const key = pair.slice(0, idx).trim();
     const value = pair.slice(idx + 1).trim();
-    if (!key)
+    if (!key) {
       continue;
+    }
     attrs[key] = value;
   }
   return attrs;
 }
-var VALID_PROTOCOLS = new Set(["grpc", "http/protobuf", "http/json"]);
+var VALID_PROTOCOLS = new Set([
+  "grpc",
+  "http/protobuf",
+  "http/json"
+]);
 function pickString(value) {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
@@ -52246,17 +52255,21 @@ function pickNonNegativeInt(value, maximum = Number.MAX_SAFE_INTEGER) {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= maximum ? value : undefined;
 }
 function pickBooleanString(value) {
-  if (typeof value !== "string")
+  if (typeof value !== "string") {
     return;
+  }
   const normalized = value.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1")
+  if (normalized === "true" || normalized === "1") {
     return true;
-  if (normalized === "false" || normalized === "0")
+  }
+  if (normalized === "false" || normalized === "0") {
     return false;
+  }
 }
 function pickStringList(value) {
-  if (!Array.isArray(value))
+  if (!Array.isArray(value)) {
     return;
+  }
   return value.filter((entry) => typeof entry === "string");
 }
 function pickProtocol(value) {
@@ -52264,17 +52277,20 @@ function pickProtocol(value) {
 }
 function parseEnvInt(key, fallback) {
   const raw = process.env[key];
-  if (!raw)
+  if (!raw) {
     return fallback;
-  if (!/^[1-9]\d*$/.test(raw))
+  }
+  if (!/^[1-9]\d*$/.test(raw)) {
     return fallback;
+  }
   const n = Number(raw);
   return Number.isSafeInteger(n) ? n : fallback;
 }
 function parseEnvNonNegativeInt(key, fallback, maximum = Number.MAX_SAFE_INTEGER) {
   const raw = process.env[key];
-  if (!raw || !/^\d+$/.test(raw))
+  if (!raw || !/^\d+$/.test(raw)) {
     return fallback;
+  }
   const value = Number(raw);
   return Number.isSafeInteger(value) && value <= maximum ? value : fallback;
 }
@@ -52287,13 +52303,6 @@ function splitList(raw) {
 function normalizeList(values) {
   return values.map((s) => s.trim()).filter(Boolean);
 }
-function expandDisabledTraces(values) {
-  const normalized = values.map((v) => v.trim().toLowerCase()).filter(Boolean);
-  if (normalized.some((value) => TRACE_DISABLE_ALL_VALUES.has(value))) {
-    return new Set(TRACE_TYPES);
-  }
-  return new Set(normalized);
-}
 function loadConfig(options = {}) {
   const resolvedOptions = typeof options === "object" && options !== null ? options : {};
   const otlpHeaders = pickString(resolvedOptions.otlpHeaders) ?? process.env["OPENCODE_OTLP_HEADERS"];
@@ -52303,12 +52312,12 @@ function loadConfig(options = {}) {
   const traceparent = pickString(resolvedOptions.traceparent) ?? process.env["OPENCODE_TRACEPARENT"];
   const tracestate = pickString(resolvedOptions.tracestate) ?? process.env["OPENCODE_TRACESTATE"];
   const protocol = pickProtocol(resolvedOptions.protocol) ?? pickProtocol(process.env["OPENCODE_OTLP_PROTOCOL"]) ?? "grpc";
-  if (otlpHeaders)
+  if (otlpHeaders) {
     process.env["OTEL_EXPORTER_OTLP_HEADERS"] = otlpHeaders;
-  if (resourceAttributes)
+  }
+  if (resourceAttributes) {
     process.env["OTEL_RESOURCE_ATTRIBUTES"] = resourceAttributes;
-  const optionTraces = pickStringList(resolvedOptions.disabledTraces);
-  const disabledTraces = expandDisabledTraces(optionTraces ?? splitList(process.env["OPENCODE_DISABLE_TRACES"]));
+  }
   const optionTracePropagationProviders = pickStringList(resolvedOptions.tracePropagationProviders);
   const tracePropagationProviders = new Set(optionTracePropagationProviders ? normalizeList(optionTracePropagationProviders) : splitList(process.env["OPENCODE_TRACE_PROPAGATION_PROVIDERS"]));
   return {
@@ -52329,20 +52338,21 @@ function loadConfig(options = {}) {
     spanAttributes,
     traceparent,
     tracestate,
-    disabledTraces,
     tracePropagationProviders
   };
 }
 function resolveHelperPath(helper, directory, worktree) {
-  if (!helper)
+  if (!helper) {
     return helper;
+  }
   const projectRoot = worktree ?? directory ?? process.cwd();
   return helper.replaceAll("${PROJECT_ROOT}", projectRoot).replaceAll("${WORKTREE}", worktree ?? projectRoot).replaceAll("${DIRECTORY}", directory ?? projectRoot);
 }
 function resolveLogLevel(logLevel, current) {
   const candidate = logLevel.toLowerCase();
-  if (candidate in LEVELS)
+  if (candidate in LEVELS) {
     return candidate;
+  }
   return current;
 }
 
@@ -52351,10 +52361,14 @@ import * as net from "net";
 function parseEndpoint(endpoint) {
   try {
     const url = new URL(endpoint);
-    if (!url.hostname)
+    if (!url.hostname) {
       return null;
+    }
     const defaultPort = url.protocol === "http:" ? 80 : url.protocol === "https:" ? 443 : 4317;
-    return { host: url.hostname, port: url.port ? parseInt(url.port, 10) : defaultPort };
+    return {
+      host: url.hostname,
+      port: url.port ? parseInt(url.port, 10) : defaultPort
+    };
   } catch {
     return null;
   }
@@ -52362,7 +52376,11 @@ function parseEndpoint(endpoint) {
 function probeEndpoint(endpoint) {
   const parsed = parseEndpoint(endpoint);
   if (!parsed) {
-    return Promise.resolve({ ok: false, ms: 0, error: `invalid endpoint URL: ${endpoint}` });
+    return Promise.resolve({
+      ok: false,
+      ms: 0,
+      error: `invalid endpoint URL: ${endpoint}`
+    });
   }
   const { host, port } = parsed;
   return new Promise((resolve) => {
@@ -52374,7 +52392,11 @@ function probeEndpoint(endpoint) {
     socket.setTimeout(5000);
     socket.on("timeout", () => {
       socket.destroy();
-      resolve({ ok: false, ms: Date.now() - start, error: "timed out after 5s" });
+      resolve({
+        ok: false,
+        ms: Date.now() - start,
+        error: "timed out after 5s"
+      });
     });
     socket.on("error", (err) => {
       resolve({ ok: false, ms: Date.now() - start, error: err.message });
@@ -52383,7 +52405,6 @@ function probeEndpoint(endpoint) {
 }
 
 // src/otel.ts
-var import_api = __toESM(require_src(), 1);
 var import_sdk_trace_base = __toESM(require_src5(), 1);
 var import_exporter_trace_otlp_grpc = __toESM(require_src18(), 1);
 var import_exporter_trace_otlp_http = __toESM(require_src19(), 1);
@@ -52398,16 +52419,18 @@ import { createRequire as createRequire2 } from "module";
 var require2 = createRequire2(import.meta.url);
 var DEFAULT_HELPER_TIMEOUT_MS = 5000;
 function parseOtlpHeaders(raw) {
-  if (!raw)
+  if (!raw) {
     return {};
+  }
   const headers = {};
   for (const pair of raw.split(",")) {
     const idx = pair.indexOf("=");
     if (idx > 0) {
       const key = pair.slice(0, idx).trim();
       const val = pair.slice(idx + 1).trim();
-      if (key)
+      if (key) {
         headers[key] = val;
+      }
     }
   }
   return headers;
@@ -52415,17 +52438,20 @@ function parseOtlpHeaders(raw) {
 function createGrpcMetadata(headers) {
   const { Metadata } = require2("@grpc/grpc-js");
   const metadata = new Metadata;
-  for (const [key, value] of Object.entries(headers))
+  for (const [key, value] of Object.entries(headers)) {
     metadata.set(key, value);
+  }
   return metadata;
 }
 function isAuthFailure(error) {
-  if (!error)
+  if (!error) {
     return false;
+  }
   const err = error;
   const numericStatus = Number(err["status"] ?? err["statusCode"] ?? err["code"]);
-  if ([401, 403, 7, 16].includes(numericStatus))
+  if ([401, 403, 7, 16].includes(numericStatus)) {
     return true;
+  }
   const message = error instanceof Error ? error.message : String(error);
   return /\b(401|403)\b|unauthenticated|permission denied|unauthorized|forbidden/i.test(message);
 }
@@ -52450,15 +52476,17 @@ class DynamicHeaders {
     return this.version;
   }
   refresh() {
-    if (!this.helper)
+    if (!this.helper) {
       return Promise.resolve(this.version);
+    }
     if (!this.refreshPromise) {
       this.refreshPromise = this.runHelper().then((helperHeaders) => {
         const next = { ...this.staticHeaders, ...helperHeaders };
         const changed = headerSignature(next) !== headerSignature(this.headers);
         this.headers = next;
-        if (changed)
+        if (changed) {
           this.version += 1;
+        }
         return this.version;
       }).finally(() => {
         this.refreshPromise = undefined;
@@ -52467,7 +52495,9 @@ class DynamicHeaders {
     return this.refreshPromise;
   }
   async runHelper() {
-    const proc = Bun.spawn([this.helper], {
+    const helper = this.helper;
+    const command = process.platform === "win32" && /\.(?:cmd|bat)$/i.test(helper) ? [process.env["ComSpec"] ?? "cmd.exe", "/d", "/c", "call", helper] : [helper];
+    const proc = Bun.spawn(command, {
       stdout: "pipe",
       stderr: "pipe",
       timeout: this.helperTimeoutMs,
@@ -52491,8 +52521,9 @@ class DynamicHeaders {
     }
     const headers = {};
     for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value !== "string")
+      if (typeof value !== "string") {
         throw new Error(`OTLP headers helper returned non-string value for ${key}`);
+      }
       headers[key] = value;
     }
     return headers;
@@ -52542,11 +52573,15 @@ function exportWithAuthRetry(wrapper, items, resultCallback) {
       return;
     }
     wrapper._refreshHeaders().then((version) => {
-      if (version !== wrapper._headersVersion())
+      if (version !== wrapper._headersVersion()) {
         wrapper._replaceExporter(version);
+      }
       wrapper._exporter().export(items, resultCallback);
     }).catch((error) => {
-      resultCallback({ code: import_core.ExportResultCode.FAILED, error: error instanceof Error ? error : new Error(String(error)) });
+      resultCallback({
+        code: import_core.ExportResultCode.FAILED,
+        error: error instanceof Error ? error : new Error(String(error))
+      });
     });
   });
 }
@@ -52555,10 +52590,11 @@ function headerSignature(headers) {
 }
 
 // src/otel.ts
-function buildResource(version) {
+var UNKNOWN_VERSION = "unknown";
+function buildResource(serviceVersion = UNKNOWN_VERSION) {
   const attrs = {
     [import_semantic_conventions.ATTR_SERVICE_NAME]: "opencode",
-    "app.version": version,
+    [import_semantic_conventions.ATTR_SERVICE_VERSION]: serviceVersion,
     "os.type": process.platform,
     [import_incubating.ATTR_HOST_ARCH]: process.arch,
     ...parseAttributePairs(process.env["OTEL_RESOURCE_ATTRIBUTES"])
@@ -52571,8 +52607,8 @@ function buildHttpTraceUrl(endpoint) {
   url.pathname = `${normalizedPath}/v1/traces`;
   return url.toString();
 }
-async function setupOtel(endpoint, protocol, version, otlpHeaders, otlpHeadersHelper, spanAttributeCountLimit = 4096) {
-  const resource = buildResource(version);
+async function setupOtel(endpoint, protocol, serviceVersion = UNKNOWN_VERSION, otlpHeaders, otlpHeadersHelper, spanAttributeCountLimit = 4096) {
+  const resource = buildResource(serviceVersion);
   const staticHeaders = parseOtlpHeaders(otlpHeaders);
   const dynamicHeaders = new DynamicHeaders(staticHeaders, otlpHeadersHelper);
   if (otlpHeadersHelper) {
@@ -52582,33 +52618,100 @@ async function setupOtel(endpoint, protocol, version, otlpHeaders, otlpHeadersHe
       console.warn("[opencode-plugin-otel] Failed to prewarm OTLP headers helper. Falling back to refresh-on-auth-failure.", error);
     }
   }
-  const makeTraceExporter = (headers) => protocol === "http/protobuf" ? new import_exporter_trace_otlp_proto.OTLPTraceExporter({ url: buildHttpTraceUrl(endpoint), headers }) : protocol === "http/json" ? new import_exporter_trace_otlp_http.OTLPTraceExporter({ url: buildHttpTraceUrl(endpoint), headers }) : new import_exporter_trace_otlp_grpc.OTLPTraceExporter({ url: endpoint, metadata: createGrpcMetadata(headers) });
+  const makeTraceExporter = (headers) => protocol === "http/protobuf" ? new import_exporter_trace_otlp_proto.OTLPTraceExporter({
+    url: buildHttpTraceUrl(endpoint),
+    headers
+  }) : protocol === "http/json" ? new import_exporter_trace_otlp_http.OTLPTraceExporter({
+    url: buildHttpTraceUrl(endpoint),
+    headers
+  }) : new import_exporter_trace_otlp_grpc.OTLPTraceExporter({
+    url: endpoint,
+    metadata: createGrpcMetadata(headers)
+  });
   const traceExporter = otlpHeadersHelper ? new RefreshingSpanExporter(makeTraceExporter, dynamicHeaders) : makeTraceExporter(staticHeaders);
   const tracerProvider = new import_sdk_trace_base.BasicTracerProvider({
     resource,
     spanLimits: { attributeCountLimit: spanAttributeCountLimit },
     spanProcessors: [new import_sdk_trace_base.BatchSpanProcessor(traceExporter)]
   });
-  import_api.trace.setGlobalTracerProvider(tracerProvider);
   return { tracerProvider };
 }
 
 // src/trace-context.ts
-var import_api2 = __toESM(require_src(), 1);
+var import_api = __toESM(require_src(), 1);
 var import_core2 = __toESM(require_src21(), 1);
 var propagator = new import_core2.W3CTraceContextPropagator;
 function remoteParentContext(traceparent, tracestate) {
-  if (!traceparent)
+  if (!traceparent) {
     return;
+  }
   const carrier = tracestate ? { traceparent, tracestate } : { traceparent };
-  const extracted = propagator.extract(import_api2.ROOT_CONTEXT, carrier, import_api2.defaultTextMapGetter);
-  return import_api2.trace.getSpanContext(extracted) ? extracted : undefined;
+  const extracted = propagator.extract(import_api.ROOT_CONTEXT, carrier, import_api.defaultTextMapGetter);
+  return import_api.trace.getSpanContext(extracted) ? extracted : undefined;
 }
 function injectTraceContext(spanContext, headers) {
-  propagator.inject(import_api2.trace.setSpanContext(import_api2.ROOT_CONTEXT, spanContext), headers, import_api2.defaultTextMapSetter);
+  propagator.inject(import_api.trace.setSpanContext(import_api.ROOT_CONTEXT, spanContext), headers, import_api.defaultTextMapSetter);
 }
 
 // src/handlers/session.ts
+var import_api7 = __toESM(require_src(), 1);
+
+// src/util.ts
+var import_api2 = __toESM(require_src(), 1);
+var GEN_AI_PROVIDER_NAMES = {
+  "amazon-bedrock": "aws.bedrock",
+  azure: "azure.ai.openai",
+  "azure-cognitive-services": "azure.ai.openai",
+  google: "gcp.gemini",
+  "google-vertex": "gcp.vertex_ai",
+  "google-vertex-anthropic": "gcp.vertex_ai",
+  mistral: "mistral_ai",
+  xai: "x_ai"
+};
+function errorSummary(err) {
+  if (!err) {
+    return "unknown";
+  }
+  if (err.data && typeof err.data === "object" && "message" in err.data) {
+    return `${err.name}: ${err.data.message}`;
+  }
+  return err.name;
+}
+function genAiProviderName(providerID) {
+  return GEN_AI_PROVIDER_NAMES[providerID] ?? providerID;
+}
+function setBoundedMap(map, key, value) {
+  if (!map.has(key) && map.size >= MAX_PENDING) {
+    const [firstKey] = map.keys();
+    if (firstKey !== undefined) {
+      map.delete(firstKey);
+    }
+  }
+  map.set(key, value);
+}
+function tryResolveInteractionTraceContext(interactionID, ctx) {
+  const baseCtx = ctx.rootContext();
+  const interactionSpan = ctx.interactionSpans.get(interactionID);
+  if (interactionSpan) {
+    return import_api2.trace.setSpan(baseCtx, interactionSpan);
+  }
+  const interactionSpanContext = ctx.interactionSpanContexts.get(interactionID);
+  return interactionSpanContext ? import_api2.trace.setSpanContext(baseCtx, interactionSpanContext) : undefined;
+}
+function resolveSessionTraceContext(sessionID, ctx) {
+  const baseCtx = ctx.rootContext();
+  const activeInteractionID = ctx.activeInteractions.get(sessionID);
+  if (activeInteractionID) {
+    const interactionContext = tryResolveInteractionTraceContext(activeInteractionID, ctx);
+    if (interactionContext) {
+      return interactionContext;
+    }
+  }
+  const activeRun = ctx.activeRunSpans.get(sessionID);
+  return activeRun ? import_api2.trace.setSpan(baseCtx, activeRun.span) : baseCtx;
+}
+
+// src/interaction.ts
 var import_api4 = __toESM(require_src(), 1);
 
 // node_modules/@arizeai/openinference-semantic-conventions/dist/esm/trace/SemanticConventions.js
@@ -52951,110 +53054,8 @@ var LLMProvider;
   LLMProvider2["PERPLEXITY"] = "perplexity";
   LLMProvider2["TOGETHER"] = "together";
 })(LLMProvider || (LLMProvider = {}));
-// src/util.ts
+// src/run.ts
 var import_api3 = __toESM(require_src(), 1);
-var GEN_AI_PROVIDER_NAMES = {
-  "amazon-bedrock": "aws.bedrock",
-  azure: "azure.ai.openai",
-  "azure-cognitive-services": "azure.ai.openai",
-  google: "gcp.gemini",
-  "google-vertex": "gcp.vertex_ai",
-  "google-vertex-anthropic": "gcp.vertex_ai",
-  mistral: "mistral_ai",
-  xai: "x_ai"
-};
-function errorSummary(err) {
-  if (!err)
-    return "unknown";
-  if (err.data && typeof err.data === "object" && "message" in err.data) {
-    return `${err.name}: ${err.data.message}`;
-  }
-  return err.name;
-}
-function genAiProviderName(providerID) {
-  return GEN_AI_PROVIDER_NAMES[providerID] ?? providerID;
-}
-function setBoundedMap(map, key, value) {
-  if (!map.has(key) && map.size >= MAX_PENDING) {
-    const [firstKey] = map.keys();
-    if (firstKey !== undefined)
-      map.delete(firstKey);
-  }
-  map.set(key, value);
-}
-function resolveInteractionTraceContext(interactionID, ctx) {
-  const baseCtx = ctx.rootContext();
-  const interactionSpan = ctx.interactionSpans.get(interactionID);
-  if (interactionSpan)
-    return import_api3.trace.setSpan(baseCtx, interactionSpan);
-  const interactionSpanContext = ctx.interactionSpanContexts.get(interactionID);
-  return interactionSpanContext ? import_api3.trace.setSpanContext(baseCtx, interactionSpanContext) : baseCtx;
-}
-function resolveSessionTraceContext(sessionID, ctx, input) {
-  const baseCtx = ctx.rootContext();
-  if (input?.interactionID)
-    return resolveInteractionTraceContext(input.interactionID, ctx);
-  const assistantInteractionID = input?.assistantMessageID ? ctx.assistantInteractions.get(input.assistantMessageID) : undefined;
-  if (assistantInteractionID)
-    return resolveInteractionTraceContext(assistantInteractionID, ctx);
-  const activeInteractionID = ctx.activeInteractions.get(sessionID);
-  if (activeInteractionID)
-    return resolveInteractionTraceContext(activeInteractionID, ctx);
-  const activeRun = ctx.activeRunSpans.get(sessionID);
-  return activeRun ? import_api3.trace.setSpan(baseCtx, activeRun.span) : baseCtx;
-}
-function isTraceEnabled(name, ctx) {
-  return !ctx.disabledTraces.has(name);
-}
-function accumulateInteractionTotals(interactionID, tokens, cost, ctx) {
-  const existing = ctx.interactionTotals.get(interactionID);
-  if (!existing)
-    return;
-  setBoundedMap(ctx.interactionTotals, interactionID, {
-    tokens: existing.tokens + tokens,
-    cost: existing.cost + cost,
-    messages: existing.messages + 1
-  });
-}
-
-// src/interaction.ts
-function endInteractionSpan(interactionID, sessionID, status, ctx, endTime, error) {
-  const span = ctx.interactionSpans.get(interactionID);
-  const totals = ctx.interactionTotals.get(interactionID);
-  const completion = ctx.interactionCompletions.get(interactionID);
-  if (span) {
-    if (totals) {
-      span.setAttributes({
-        "interaction.total_tokens": totals.tokens,
-        "interaction.total_cost_usd": totals.cost,
-        "interaction.total_messages": totals.messages
-      });
-    }
-    if (completion?.output !== undefined) {
-      span.setAttributes({
-        [OUTPUT_VALUE]: completion.output,
-        [OUTPUT_MIME_TYPE]: MimeType.TEXT
-      });
-      const run = ctx.activeRunSpans.get(sessionID);
-      const interactionIO = run?.interactionIO.get(interactionID);
-      if (run && interactionIO) {
-        run.interactionIO.set(interactionID, { ...interactionIO, output: completion.output });
-      }
-    }
-    span.setStatus(error ? { code: status, message: error } : { code: status });
-    if (error)
-      span.setAttribute("error", error);
-    span.end(endTime);
-    ctx.interactionSpans.delete(interactionID);
-  }
-  ctx.interactionTotals.delete(interactionID);
-  ctx.interactionCompletions.delete(interactionID);
-  if (ctx.activeInteractions.get(sessionID) === interactionID) {
-    ctx.activeInteractions.delete(sessionID);
-  }
-}
-
-// src/handlers/session.ts
 var OPENINFERENCE_SPAN_KIND = SemanticConventions.OPENINFERENCE_SPAN_KIND;
 function setRunIOAttributes(run) {
   const interactions = [...run.interactionIO.values()];
@@ -53068,14 +53069,27 @@ function setRunIOAttributes(run) {
     } : {}
   });
 }
+function takeRunDetails(sessionID, ctx) {
+  const details = ctx.pendingSubagentRuns.get(sessionID);
+  if (details) {
+    ctx.pendingSubagentRuns.delete(sessionID);
+    return details;
+  }
+  const parentSessionID = ctx.sessionParents.get(sessionID);
+  return {
+    agentType: parentSessionID ? "subagent" : "primary",
+    ...parentSessionID ? { parentSessionID } : {}
+  };
+}
 function ensureRunStarted(sessionID, agent, startTime, ctx, details) {
   const parentSessionID = details?.parentSessionID ?? ctx.sessionParents.get(sessionID);
   const agentType = details?.agentType ?? (parentSessionID ? "subagent" : "primary");
   const isSubagent = agentType === "subagent";
   const existing = ctx.activeRunSpans.get(sessionID);
   if (existing) {
-    if (agent !== "unknown")
+    if (agent !== "unknown") {
       existing.agent = agent;
+    }
     existing.agentType = agentType;
     existing.span.setAttributes({
       ...agent !== "unknown" ? { [AGENT_NAME]: agent } : {},
@@ -53086,7 +53100,7 @@ function ensureRunStarted(sessionID, agent, startTime, ctx, details) {
     });
     return existing;
   }
-  const parentContext = details?.taskSpanContext ? import_api4.trace.setSpanContext(ctx.rootContext(), details.taskSpanContext) : parentSessionID ? resolveSessionTraceContext(parentSessionID, ctx) : ctx.rootContext();
+  const parentContext = details?.taskSpanContext ? import_api3.trace.setSpanContext(ctx.rootContext(), details.taskSpanContext) : parentSessionID ? resolveSessionTraceContext(parentSessionID, ctx) : ctx.rootContext();
   const span = ctx.tracer.startSpan(`${ctx.tracePrefix}run`, {
     startTime,
     attributes: {
@@ -53114,24 +53128,74 @@ function ensureRunStarted(sessionID, agent, startTime, ctx, details) {
   ctx.activeRunSpans.set(sessionID, run);
   return run;
 }
-function handleInteractionStarted(interactionID, sessionID, agent, promptText, model, startTime, ctx, details) {
-  const existing = ctx.interactionSpans.get(interactionID);
-  if (!existing && ctx.interactionSpanContexts.has(interactionID))
+function endRunSpan(sessionID, status, ctx, error) {
+  const run = ctx.activeRunSpans.get(sessionID);
+  if (!run) {
     return;
-  ctx.activeInteractions.set(sessionID, interactionID);
-  if (promptText)
-    setBoundedMap(ctx.interactionInputs, interactionID, promptText);
-  const run = ensureRunStarted(sessionID, agent, startTime, ctx, details);
-  if (run) {
-    run.interactionIDs.add(interactionID);
-    const interactionIO = run.interactionIO.get(interactionID);
-    run.interactionIO.set(interactionID, {
-      ...interactionIO,
-      input: promptText || interactionIO?.input || ""
-    });
   }
-  const parentSessionID = details?.parentSessionID ?? ctx.sessionParents.get(sessionID);
-  const agentType = details?.agentType ?? (parentSessionID ? "subagent" : "primary");
+  run.span.setAttributes({
+    [AGENT_NAME]: run.agent,
+    "agent.type": run.agentType,
+    "run.total_tokens": run.tokens,
+    "run.total_cost_usd": run.cost,
+    "run.total_messages": run.messages
+  });
+  setRunIOAttributes(run);
+  run.span.setAttribute("run.total_interactions", run.interactionIDs.size);
+  run.span.setStatus(error ? { code: status, message: error } : { code: status });
+  if (error) {
+    run.span.setAttribute("error", error);
+  }
+  run.span.end();
+  ctx.activeRunSpans.delete(sessionID);
+}
+
+// src/interaction.ts
+var OPENINFERENCE_SPAN_KIND2 = SemanticConventions.OPENINFERENCE_SPAN_KIND;
+function createInteractionState() {
+  return {
+    interactionSpans: new Map,
+    interactionSpanContexts: new Map,
+    activeInteractions: new Map,
+    interactionAliases: new Map,
+    assistantInteractions: new Map,
+    pendingInteractions: new Map,
+    pendingAssistantInteractions: new Map,
+    interactionInputs: new Map,
+    interactionTotals: new Map,
+    interactionCompletions: new Map
+  };
+}
+function resolveInteractionOwner(messageID, sessionID, ctx) {
+  const pending = ctx.pendingInteractions.get(messageID);
+  if (ctx.interactionSpans.has(messageID) || ctx.interactionSpanContexts.has(messageID) || pending && (!sessionID || pending.sessionID === sessionID)) {
+    return messageID;
+  }
+  const alias = ctx.interactionAliases.get(messageID);
+  if (!alias || sessionID && alias.sessionID !== sessionID) {
+    return;
+  }
+  return alias.ownerInteractionID;
+}
+function handleInteractionStarted(interactionID, sessionID, agent, promptText, model, startTime, ctx) {
+  const existing = ctx.interactionSpans.get(interactionID);
+  if (!existing && ctx.interactionSpanContexts.has(interactionID)) {
+    return;
+  }
+  const details = takeRunDetails(sessionID, ctx);
+  ctx.activeInteractions.set(sessionID, interactionID);
+  if (promptText) {
+    setBoundedMap(ctx.interactionInputs, interactionID, promptText);
+  }
+  const run = ensureRunStarted(sessionID, agent, startTime, ctx, details);
+  run.interactionIDs.add(interactionID);
+  const interactionIO = run.interactionIO.get(interactionID);
+  run.interactionIO.set(interactionID, {
+    ...interactionIO,
+    input: promptText || interactionIO?.input || ""
+  });
+  const parentSessionID = details.parentSessionID;
+  const agentType = details.agentType;
   const isSubagent = agentType === "subagent";
   if (existing) {
     existing.setAttributes({
@@ -53140,7 +53204,7 @@ function handleInteractionStarted(interactionID, sessionID, agent, promptText, m
       "agent.type": agentType,
       "session.is_subagent": isSubagent,
       ...parentSessionID ? { "session.parent_id": parentSessionID } : {},
-      ...details?.taskCallID ? { "task.call_id": details.taskCallID } : {},
+      ...details.taskCallID ? { "task.call_id": details.taskCallID } : {},
       ...promptText ? {
         [INPUT_VALUE]: promptText,
         [INPUT_MIME_TYPE]: MimeType.TEXT,
@@ -53151,18 +53215,18 @@ function handleInteractionStarted(interactionID, sessionID, agent, promptText, m
     });
     return;
   }
-  const parentContext = run ? import_api4.trace.setSpan(ctx.rootContext(), run.span) : ctx.rootContext();
+  const parentContext = import_api4.trace.setSpan(ctx.rootContext(), run.span);
   const interactionSpan = ctx.tracer.startSpan(`${ctx.tracePrefix}interaction`, {
     startTime,
     attributes: {
-      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
+      [OPENINFERENCE_SPAN_KIND2]: OpenInferenceSpanKind.AGENT,
       "opencode.interaction.id": interactionID,
       [SESSION_ID]: sessionID,
       [AGENT_NAME]: agent,
       "agent.type": agentType,
       "session.is_subagent": isSubagent,
       ...parentSessionID ? { "session.parent_id": parentSessionID } : {},
-      ...details?.taskCallID ? { "task.call_id": details.taskCallID } : {},
+      ...details.taskCallID ? { "task.call_id": details.taskCallID } : {},
       ...promptText ? {
         [INPUT_VALUE]: promptText,
         [INPUT_MIME_TYPE]: MimeType.TEXT,
@@ -53177,48 +53241,46 @@ function handleInteractionStarted(interactionID, sessionID, agent, promptText, m
   setBoundedMap(ctx.interactionSpanContexts, interactionID, interactionSpan.spanContext());
   ctx.interactionTotals.set(interactionID, { tokens: 0, cost: 0, messages: 0 });
 }
-function handleSessionCreated(e, ctx) {
-  const { id: sessionID, parentID } = e.properties.info;
-  if (parentID)
-    setBoundedMap(ctx.sessionParents, sessionID, parentID);
-}
-function sweepSession(sessionID, ctx) {
-  for (const [key, span] of ctx.pendingToolSpans) {
-    if (span.sessionID === sessionID) {
-      span.span?.setStatus({ code: import_api4.SpanStatusCode.ERROR, message: "session ended before tool completed" });
-      span.span?.end();
-      ctx.pendingToolSpans.delete(key);
+function endInteractionSpan(interactionID, sessionID, status, ctx, endTime, error) {
+  const span = ctx.interactionSpans.get(interactionID);
+  const totals = ctx.interactionTotals.get(interactionID);
+  const completion = ctx.interactionCompletions.get(interactionID);
+  if (span) {
+    if (totals) {
+      span.setAttributes({
+        "interaction.total_tokens": totals.tokens,
+        "interaction.total_cost_usd": totals.cost,
+        "interaction.total_messages": totals.messages
+      });
     }
-  }
-  ctx.pendingSubagentRuns.delete(sessionID);
-  for (const [childSessionID, details] of ctx.pendingSubagentRuns) {
-    if (details.parentSessionID === sessionID)
-      ctx.pendingSubagentRuns.delete(childSessionID);
-  }
-  const msgPrefix = `${sessionID}:`;
-  for (const [key, span] of ctx.messageSpans) {
-    if (key.startsWith(msgPrefix)) {
-      span.setStatus({ code: import_api4.SpanStatusCode.ERROR, message: "session ended before message completed" });
-      span.end();
-      ctx.messageSpans.delete(key);
+    if (completion?.output !== undefined) {
+      span.setAttributes({
+        [OUTPUT_VALUE]: completion.output,
+        [OUTPUT_MIME_TYPE]: MimeType.TEXT
+      });
+      const run = ctx.activeRunSpans.get(sessionID);
+      const interactionIO = run?.interactionIO.get(interactionID);
+      if (run && interactionIO) {
+        run.interactionIO.set(interactionID, {
+          ...interactionIO,
+          output: completion.output
+        });
+      }
     }
-  }
-  for (const key of ctx.messageOutputs.keys()) {
-    if (key.startsWith(msgPrefix) && !ctx.pendingAssistantInteractions.has(key)) {
-      ctx.messageOutputs.delete(key);
+    span.setStatus(error ? { code: status, message: error } : { code: status });
+    if (error) {
+      span.setAttribute("error", error);
     }
+    span.end(endTime);
+    ctx.interactionSpans.delete(interactionID);
   }
-  for (const key of ctx.llmRequestContexts.keys()) {
-    if (key.startsWith(msgPrefix))
-      ctx.llmRequestContexts.delete(key);
-  }
-  ctx.activeMessageSpans.delete(sessionID);
-  for (const key of ctx.llmTelemetryOutputs.keys()) {
-    if (key.startsWith(msgPrefix))
-      ctx.llmTelemetryOutputs.delete(key);
+  ctx.interactionTotals.delete(interactionID);
+  ctx.interactionCompletions.delete(interactionID);
+  if (ctx.activeInteractions.get(sessionID) === interactionID) {
+    ctx.activeInteractions.delete(sessionID);
   }
 }
-function endInteractions(sessionID, status, ctx, error) {
+function endSessionInteractions(sessionID, status, ctx, error) {
   const run = ctx.activeRunSpans.get(sessionID);
   if (!run) {
     for (const [key, pending] of ctx.pendingAssistantInteractions) {
@@ -53229,71 +53291,548 @@ function endInteractions(sessionID, status, ctx, error) {
     return;
   }
   for (const interactionID of run.interactionIDs) {
-    const hasPendingAssistant = [...ctx.pendingAssistantInteractions.values()].some((pending) => pending.sessionID === sessionID && pending.interactionID === interactionID);
-    if (hasPendingAssistant)
+    const hasPendingAssistant = [
+      ...ctx.pendingAssistantInteractions.values()
+    ].some((pending) => pending.sessionID === sessionID && pending.interactionID === interactionID);
+    if (hasPendingAssistant) {
       continue;
+    }
     const endTime = status === import_api4.SpanStatusCode.OK ? ctx.interactionCompletions.get(interactionID)?.endTime : undefined;
     endInteractionSpan(interactionID, sessionID, status, ctx, endTime, error);
   }
 }
+var interactionHandlers = {
+  stage(interactionID, sessionID, agent, promptText, model, startTime, ctx) {
+    if (ctx.interactionSpans.has(interactionID) || ctx.interactionSpanContexts.has(interactionID)) {
+      return;
+    }
+    setBoundedMap(ctx.pendingInteractions, interactionID, {
+      sessionID,
+      agent,
+      promptText,
+      model,
+      startTime
+    });
+  },
+  materialize(interactionID, sessionID, ctx) {
+    const ownerInteractionID = resolveInteractionOwner(interactionID, sessionID, ctx) ?? interactionID;
+    const pending = ctx.pendingInteractions.get(ownerInteractionID);
+    if (pending?.sessionID !== sessionID) {
+      return false;
+    }
+    ctx.pendingInteractions.delete(ownerInteractionID);
+    handleInteractionStarted(ownerInteractionID, pending.sessionID, pending.agent, pending.promptText, pending.model, pending.startTime, ctx);
+    return true;
+  },
+  bindAlias(aliasID, sessionID, ownerInteractionID, ctx) {
+    setBoundedMap(ctx.interactionAliases, aliasID, {
+      sessionID,
+      ownerInteractionID
+    });
+  },
+  owner(messageID, sessionID, ctx) {
+    return resolveInteractionOwner(messageID, sessionID, ctx);
+  },
+  latest(sessionID, ctx) {
+    let interactionID = ctx.activeInteractions.get(sessionID);
+    for (const [pendingID, pending] of ctx.pendingInteractions) {
+      if (pending.sessionID !== sessionID) {
+        continue;
+      }
+      if (!interactionID || pendingID > interactionID) {
+        interactionID = pendingID;
+      }
+    }
+    return interactionID;
+  },
+  bindAssistant(assistantID, interactionID, ctx) {
+    if (!interactionID) {
+      return;
+    }
+    setBoundedMap(ctx.assistantInteractions, assistantID, interactionID);
+  },
+  resolveAssistant(assistantID, fallbackInteractionID, ctx) {
+    return ctx.assistantInteractions.get(assistantID) ?? (fallbackInteractionID ? resolveInteractionOwner(fallbackInteractionID, undefined, ctx) : undefined);
+  },
+  trackAssistant(assistantID, msgKey, sessionID, interactionID, ctx) {
+    if (!interactionID) {
+      return;
+    }
+    setBoundedMap(ctx.assistantInteractions, assistantID, interactionID);
+    setBoundedMap(ctx.pendingAssistantInteractions, msgKey, {
+      sessionID,
+      interactionID
+    });
+  },
+  completeAssistant(msgKey, ctx) {
+    ctx.pendingAssistantInteractions.delete(msgKey);
+  },
+  hasPendingAssistant(msgKey, ctx) {
+    return ctx.pendingAssistantInteractions.has(msgKey);
+  },
+  input(interactionID, ctx) {
+    return ctx.interactionInputs.get(interactionID);
+  },
+  recordUsage(interactionID, tokens, cost, ctx) {
+    const existing = ctx.interactionTotals.get(interactionID);
+    if (!existing) {
+      return;
+    }
+    setBoundedMap(ctx.interactionTotals, interactionID, {
+      tokens: existing.tokens + tokens,
+      cost: existing.cost + cost,
+      messages: existing.messages + 1
+    });
+  },
+  recordCompletion(interactionID, endTime, output, ctx) {
+    if (!ctx.interactionSpans.has(interactionID)) {
+      return;
+    }
+    setBoundedMap(ctx.interactionCompletions, interactionID, {
+      endTime,
+      output
+    });
+  },
+  has(interactionID, ctx) {
+    return ctx.interactionSpans.has(interactionID);
+  },
+  end: endInteractionSpan,
+  endSession: endSessionInteractions
+};
+
+// src/compaction.ts
+var import_api5 = __toESM(require_src(), 1);
+var OPENINFERENCE_SPAN_KIND3 = SemanticConventions.OPENINFERENCE_SPAN_KIND;
+function createCompactionState() {
+  return {
+    userMessages: new Map,
+    activeCompactions: new Map,
+    compactionRecords: new Map,
+    recentCompactions: new Map,
+    pendingContextOverflows: new Map
+  };
+}
+function isCompactionContinuePart(part) {
+  return part.type === "text" && part.synthetic === true && part.metadata?.["compaction_continue"] === true;
+}
+function endActiveCompaction(sessionID, status, ctx, error) {
+  const active = ctx.activeCompactions.get(sessionID);
+  if (!active) {
+    return;
+  }
+  active.span.setStatus(error ? { code: status, message: error } : { code: status });
+  if (error) {
+    active.span.setAttribute("error", error);
+  }
+  active.span.end();
+  ctx.activeCompactions.delete(sessionID);
+  if (status === import_api5.SpanStatusCode.OK) {
+    const record = ctx.compactionRecords.get(active.markerMessageID);
+    if (record) {
+      setBoundedMap(ctx.recentCompactions, sessionID, record);
+    }
+  } else {
+    ctx.recentCompactions.delete(sessionID);
+  }
+}
+var compactionHandlers = {
+  recordUser(message, ctx) {
+    setBoundedMap(ctx.userMessages, message.id, {
+      sessionID: message.sessionID,
+      agent: message.agent,
+      startTime: message.time.created
+    });
+  },
+  deferContextOverflow(sessionID, error, ctx) {
+    if (ctx.activeCompactions.has(sessionID)) {
+      return false;
+    }
+    const activeMessage = ctx.activeMessageSpans.get(sessionID);
+    if (!activeMessage) {
+      return false;
+    }
+    const ownerInteractionID = interactionHandlers.resolveAssistant(activeMessage.messageID, undefined, ctx) ?? interactionHandlers.latest(sessionID, ctx);
+    setBoundedMap(ctx.pendingContextOverflows, sessionID, {
+      messageID: activeMessage.messageID,
+      ownerInteractionID,
+      error
+    });
+    return true;
+  },
+  pendingContextOverflow(sessionID, ctx) {
+    return ctx.pendingContextOverflows.get(sessionID);
+  },
+  contextOverflowForMessage(sessionID, messageID, ctx) {
+    const pending = ctx.pendingContextOverflows.get(sessionID);
+    return pending?.messageID === messageID ? pending : undefined;
+  },
+  clearContextOverflow(sessionID, ctx) {
+    ctx.pendingContextOverflows.delete(sessionID);
+  },
+  start(part, ctx) {
+    if (ctx.compactionRecords.has(part.messageID)) {
+      return;
+    }
+    const current = ctx.activeCompactions.get(part.sessionID);
+    if (current) {
+      endActiveCompaction(part.sessionID, import_api5.SpanStatusCode.ERROR, ctx, "a new compaction started before the previous compaction completed");
+    }
+    const user = ctx.userMessages.get(part.messageID);
+    const pendingOverflow = ctx.pendingContextOverflows.get(part.sessionID);
+    const overflow = part.overflow === true || part.overflow === undefined && part.auto && pendingOverflow !== undefined;
+    const ownerInteractionID = part.auto ? (overflow ? pendingOverflow?.ownerInteractionID : undefined) ?? interactionHandlers.latest(part.sessionID, ctx) : undefined;
+    if (ownerInteractionID) {
+      interactionHandlers.materialize(ownerInteractionID, part.sessionID, ctx);
+      interactionHandlers.bindAlias(part.messageID, part.sessionID, ownerInteractionID, ctx);
+    }
+    const startTime = user?.sessionID === part.sessionID ? user.startTime : Date.now();
+    const run = ctx.activeRunSpans.get(part.sessionID) ?? ensureRunStarted(part.sessionID, user?.agent ?? "compaction", startTime, ctx, takeRunDetails(part.sessionID, ctx));
+    const parentContext = (ownerInteractionID ? tryResolveInteractionTraceContext(ownerInteractionID, ctx) : undefined) ?? import_api5.trace.setSpan(ctx.rootContext(), run.span);
+    const span = ctx.tracer.startSpan(`${ctx.tracePrefix}compaction`, {
+      startTime,
+      kind: import_api5.SpanKind.INTERNAL,
+      attributes: {
+        [OPENINFERENCE_SPAN_KIND3]: OpenInferenceSpanKind.CHAIN,
+        [SESSION_ID]: part.sessionID,
+        "opencode.compaction.id": part.messageID,
+        "opencode.compaction.auto": part.auto,
+        "opencode.compaction.overflow": overflow,
+        ...overflow && pendingOverflow ? {
+          "opencode.compaction.trigger_message.id": pendingOverflow.messageID
+        } : {},
+        ...ownerInteractionID ? { "opencode.interaction.id": ownerInteractionID } : {},
+        ...ctx.commonAttrs
+      }
+    }, parentContext);
+    const record = {
+      sessionID: part.sessionID,
+      markerMessageID: part.messageID,
+      ownerInteractionID,
+      auto: part.auto,
+      overflow,
+      ...overflow && pendingOverflow ? { triggerMessageID: pendingOverflow.messageID } : {},
+      spanContext: span.spanContext()
+    };
+    setBoundedMap(ctx.compactionRecords, part.messageID, record);
+    ctx.activeCompactions.set(part.sessionID, { ...record, span });
+    ctx.recentCompactions.delete(part.sessionID);
+    if (overflow) {
+      ctx.pendingContextOverflows.delete(part.sessionID);
+    }
+  },
+  handlePart(part, ctx) {
+    if (part.type === "compaction") {
+      compactionHandlers.start(part, ctx);
+      return true;
+    }
+    if (!isCompactionContinuePart(part)) {
+      return false;
+    }
+    const compaction = ctx.activeCompactions.get(part.sessionID) ?? ctx.recentCompactions.get(part.sessionID);
+    if (compaction?.ownerInteractionID) {
+      interactionHandlers.bindAlias(part.messageID, part.sessionID, compaction.ownerInteractionID, ctx);
+    }
+    return true;
+  },
+  resolve(sessionID, markerMessageID, ctx) {
+    const active = ctx.activeCompactions.get(sessionID);
+    if (active?.markerMessageID === markerMessageID) {
+      return {
+        markerMessageID,
+        ownerInteractionID: active.ownerInteractionID,
+        overflow: active.overflow,
+        triggerMessageID: active.triggerMessageID,
+        parentContext: import_api5.trace.setSpan(ctx.rootContext(), active.span)
+      };
+    }
+    const record = ctx.compactionRecords.get(markerMessageID);
+    if (record?.sessionID !== sessionID) {
+      return;
+    }
+    return {
+      markerMessageID,
+      ownerInteractionID: record.ownerInteractionID,
+      overflow: record.overflow,
+      triggerMessageID: record.triggerMessageID,
+      parentContext: import_api5.trace.setSpanContext(ctx.rootContext(), record.spanContext)
+    };
+  },
+  recoverOwner(sessionID, messageID, ctx) {
+    const compaction = ctx.recentCompactions.get(sessionID);
+    if (!compaction?.ownerInteractionID) {
+      return;
+    }
+    interactionHandlers.bindAlias(messageID, sessionID, compaction.ownerInteractionID, ctx);
+    return compaction.ownerInteractionID;
+  },
+  complete(sessionID, ctx) {
+    endActiveCompaction(sessionID, import_api5.SpanStatusCode.OK, ctx);
+    ctx.pendingContextOverflows.delete(sessionID);
+  },
+  fail(sessionID, error, ctx) {
+    endActiveCompaction(sessionID, import_api5.SpanStatusCode.ERROR, ctx, error);
+  },
+  clearRecent(sessionID, ctx) {
+    ctx.recentCompactions.delete(sessionID);
+  }
+};
+
+// src/handlers/permission.ts
+var import_api6 = __toESM(require_src(), 1);
+var OPENINFERENCE_SPAN_KIND4 = SemanticConventions.OPENINFERENCE_SPAN_KIND;
+function permissionKey(sessionID, requestID) {
+  return `${sessionID}:${requestID}`;
+}
+function storePermissionSpan(key, value, ctx) {
+  const oldest = !ctx.pendingPermissionSpans.has(key) && ctx.pendingPermissionSpans.size >= MAX_PENDING ? ctx.pendingPermissionSpans.values().next().value : undefined;
+  setBoundedMap(ctx.pendingPermissionSpans, key, value);
+  if (!oldest) {
+    return;
+  }
+  oldest.span.setStatus({
+    code: import_api6.SpanStatusCode.ERROR,
+    message: "permission correlation capacity exceeded"
+  });
+  oldest.span.end();
+  return ctx.log("warn", "otel: pending permission span evicted", {
+    sessionID: oldest.sessionID,
+    callID: oldest.callID
+  });
+}
+var permissionHandlers = {
+  asked(e, ctx) {
+    const request = e.properties;
+    if (!request.tool) {
+      return ctx.log("debug", "otel: permission span skipped without tool correlation", {
+        sessionID: request.sessionID,
+        requestID: request.id,
+        permission: request.permission
+      });
+    }
+    const key = permissionKey(request.sessionID, request.id);
+    if (ctx.pendingPermissionSpans.has(key)) {
+      return ctx.log("debug", "otel: duplicate permission request ignored", {
+        sessionID: request.sessionID,
+        requestID: request.id,
+        callID: request.tool.callID
+      });
+    }
+    const tool = ctx.pendingToolSpans.get(`${request.sessionID}:${request.tool.callID}`);
+    if (!tool) {
+      return ctx.log("warn", "otel: permission span skipped because tool span was not found", {
+        sessionID: request.sessionID,
+        requestID: request.id,
+        callID: request.tool.callID,
+        permission: request.permission
+      });
+    }
+    const startMs = Date.now();
+    const run = ctx.activeRunSpans.get(request.sessionID);
+    const span = ctx.tracer.startSpan(`${ctx.tracePrefix}permission.check`, {
+      startTime: startMs,
+      kind: import_api6.SpanKind.INTERNAL,
+      attributes: {
+        [OPENINFERENCE_SPAN_KIND4]: OpenInferenceSpanKind.GUARDRAIL,
+        [SESSION_ID]: request.sessionID,
+        [TOOL_ID]: request.tool.callID,
+        [TOOL_NAME]: tool.tool,
+        [AGENT_NAME]: run?.agent ?? "unknown",
+        "agent.type": run?.agentType ?? ctx.pendingSubagentRuns.get(request.sessionID)?.agentType ?? (ctx.sessionParents.has(request.sessionID) ? "subagent" : "primary"),
+        "permission.request.id": request.id,
+        "permission.name": request.permission,
+        "permission.patterns": request.patterns,
+        "permission.tool.call_id": request.tool.callID,
+        "permission.tool.message_id": request.tool.messageID,
+        ...ctx.commonAttrs
+      }
+    }, import_api6.trace.setSpan(ctx.rootContext(), tool.span));
+    return storePermissionSpan(key, {
+      sessionID: request.sessionID,
+      callID: request.tool.callID,
+      startMs,
+      span
+    }, ctx);
+  },
+  replied(e, ctx) {
+    const reply = e.properties;
+    const key = permissionKey(reply.sessionID, reply.requestID);
+    const pending = ctx.pendingPermissionSpans.get(key);
+    if (!pending) {
+      return ctx.log("debug", "otel: permission reply has no pending span", {
+        sessionID: reply.sessionID,
+        requestID: reply.requestID,
+        reply: reply.reply
+      });
+    }
+    ctx.pendingPermissionSpans.delete(key);
+    const endMs = Date.now();
+    pending.span.setAttributes({
+      "permission.reply": reply.reply,
+      "permission.granted": reply.reply !== "reject",
+      "permission.wait_ms": Math.max(0, endMs - pending.startMs)
+    });
+    if (reply.reply === "reject") {
+      const tool = ctx.pendingToolSpans.get(`${reply.sessionID}:${pending.callID}`);
+      if (tool) {
+        tool.errorType = "PermissionRejectedError";
+      }
+    }
+    pending.span.setStatus({ code: import_api6.SpanStatusCode.OK });
+    pending.span.end(endMs);
+  },
+  endTool(sessionID, callID, ctx, error) {
+    for (const [key, pending] of ctx.pendingPermissionSpans) {
+      if (pending.sessionID !== sessionID || pending.callID !== callID) {
+        continue;
+      }
+      pending.span.setStatus({ code: import_api6.SpanStatusCode.ERROR, message: error });
+      pending.span.end();
+      ctx.pendingPermissionSpans.delete(key);
+    }
+  },
+  endSession(sessionID, ctx, error) {
+    for (const [key, pending] of ctx.pendingPermissionSpans) {
+      if (pending.sessionID !== sessionID) {
+        continue;
+      }
+      pending.span.setStatus({ code: import_api6.SpanStatusCode.ERROR, message: error });
+      pending.span.end();
+      ctx.pendingPermissionSpans.delete(key);
+    }
+  }
+};
+
+// src/handlers/session.ts
+function handleSessionCreated(e, ctx) {
+  const { id: sessionID, parentID } = e.properties.info;
+  if (parentID) {
+    setBoundedMap(ctx.sessionParents, sessionID, parentID);
+  }
+}
+function sweepSession(sessionID, ctx, messageError) {
+  permissionHandlers.endSession(sessionID, ctx, "session ended before permission reply");
+  for (const [key, span] of ctx.pendingToolSpans) {
+    if (span.sessionID === sessionID) {
+      span.span.setStatus({
+        code: import_api7.SpanStatusCode.ERROR,
+        message: "session ended before tool completed"
+      });
+      span.span.end();
+      ctx.pendingToolSpans.delete(key);
+    }
+  }
+  ctx.pendingSubagentRuns.delete(sessionID);
+  for (const [childSessionID, details] of ctx.pendingSubagentRuns) {
+    if (details.parentSessionID === sessionID) {
+      ctx.pendingSubagentRuns.delete(childSessionID);
+    }
+  }
+  const msgPrefix = `${sessionID}:`;
+  for (const [key, span] of ctx.messageSpans) {
+    if (key.startsWith(msgPrefix)) {
+      const error = messageError && key === `${sessionID}:${messageError.messageID}` ? messageError.error : "session ended before message completed";
+      span.setStatus({ code: import_api7.SpanStatusCode.ERROR, message: error });
+      if (messageError && key === `${sessionID}:${messageError.messageID}`) {
+        span.setAttributes({
+          "llm.finish_reason": "error",
+          ...messageError.errorType ? { "error.type": messageError.errorType } : {}
+        });
+      }
+      span.end();
+      ctx.messageSpans.delete(key);
+    }
+  }
+  for (const key of ctx.messageOutputs.keys()) {
+    if (key.startsWith(msgPrefix) && !interactionHandlers.hasPendingAssistant(key, ctx)) {
+      ctx.messageOutputs.delete(key);
+    }
+  }
+  for (const key of ctx.llmRequestContexts.keys()) {
+    if (key.startsWith(msgPrefix)) {
+      ctx.llmRequestContexts.delete(key);
+    }
+  }
+  ctx.activeMessageSpans.delete(sessionID);
+  for (const key of ctx.llmTelemetryOutputs.keys()) {
+    if (key.startsWith(msgPrefix)) {
+      ctx.llmTelemetryOutputs.delete(key);
+    }
+  }
+}
 function handleSessionIdle(e, ctx) {
   const sessionID = e.properties.sessionID;
-  sweepSession(sessionID, ctx);
-  endInteractions(sessionID, import_api4.SpanStatusCode.OK, ctx);
-  const run = ctx.activeRunSpans.get(sessionID);
-  if (run) {
-    run.span.setAttributes({
-      [AGENT_NAME]: run.agent,
-      "agent.type": run.agentType,
-      "run.total_tokens": run.tokens,
-      "run.total_cost_usd": run.cost,
-      "run.total_messages": run.messages
+  const overflow = compactionHandlers.pendingContextOverflow(sessionID, ctx);
+  if (overflow) {
+    compactionHandlers.fail(sessionID, overflow.error, ctx);
+    sweepSession(sessionID, ctx, {
+      ...overflow,
+      errorType: "ContextOverflowError"
     });
-    setRunIOAttributes(run);
-    run.span.setAttribute("run.total_interactions", run.interactionIDs.size);
-    run.span.setStatus({ code: import_api4.SpanStatusCode.OK });
-    run.span.end();
-    ctx.activeRunSpans.delete(sessionID);
+    if (overflow.ownerInteractionID) {
+      interactionHandlers.end(overflow.ownerInteractionID, sessionID, import_api7.SpanStatusCode.ERROR, ctx, undefined, overflow.error);
+    }
+    interactionHandlers.endSession(sessionID, import_api7.SpanStatusCode.ERROR, ctx, overflow.error);
+    endRunSpan(sessionID, import_api7.SpanStatusCode.ERROR, ctx, overflow.error);
+    compactionHandlers.clearRecent(sessionID, ctx);
+    compactionHandlers.clearContextOverflow(sessionID, ctx);
+    return;
   }
+  compactionHandlers.fail(sessionID, "session ended before compaction completed", ctx);
+  sweepSession(sessionID, ctx);
+  interactionHandlers.endSession(sessionID, import_api7.SpanStatusCode.OK, ctx);
+  endRunSpan(sessionID, import_api7.SpanStatusCode.OK, ctx);
+  compactionHandlers.clearRecent(sessionID, ctx);
 }
 function handleSessionError(e, ctx) {
   const rawID = e.properties.sessionID;
   const sessionID = rawID ?? "unknown";
   const error = errorSummary(e.properties.error);
-  sweepSession(sessionID, ctx);
-  if (rawID)
-    endInteractions(rawID, import_api4.SpanStatusCode.ERROR, ctx, error);
+  const errorName = e.properties.error?.name;
+  if (rawID && errorName === "ContextOverflowError" && compactionHandlers.deferContextOverflow(rawID, error, ctx)) {
+    ctx.log("warn", "otel: context overflow recovery pending", {
+      sessionID,
+      error
+    });
+    return "recoverable";
+  }
+  const activeMessage = rawID ? ctx.activeMessageSpans.get(rawID) : undefined;
+  const compactionOwnerInteractionID = rawID ? ctx.activeCompactions.get(rawID)?.ownerInteractionID : undefined;
+  compactionHandlers.fail(sessionID, error, ctx);
+  sweepSession(sessionID, ctx, activeMessage ? {
+    messageID: activeMessage.messageID,
+    error,
+    ...errorName ? { errorType: errorName } : {}
+  } : undefined);
   if (rawID) {
-    const run = ctx.activeRunSpans.get(rawID);
-    if (run) {
-      run.span.setAttributes({
-        [AGENT_NAME]: run.agent,
-        "agent.type": run.agentType,
-        "run.total_tokens": run.tokens,
-        "run.total_cost_usd": run.cost,
-        "run.total_messages": run.messages
-      });
-      setRunIOAttributes(run);
-      run.span.setAttribute("run.total_interactions", run.interactionIDs.size);
-      run.span.setStatus({ code: import_api4.SpanStatusCode.ERROR, message: error });
-      run.span.setAttribute("error", error);
-      run.span.end();
-      ctx.activeRunSpans.delete(rawID);
+    if (compactionOwnerInteractionID) {
+      interactionHandlers.end(compactionOwnerInteractionID, rawID, import_api7.SpanStatusCode.ERROR, ctx, undefined, error);
     }
+    interactionHandlers.endSession(rawID, import_api7.SpanStatusCode.ERROR, ctx, error);
+    endRunSpan(rawID, import_api7.SpanStatusCode.ERROR, ctx, error);
   }
+  compactionHandlers.clearRecent(sessionID, ctx);
+  compactionHandlers.clearContextOverflow(sessionID, ctx);
   ctx.log("error", "otel: session.error", { sessionID, error });
+  return "terminal";
 }
-function handleSessionStatus(e, ctx) {
-  const { sessionID, status } = e.properties;
-  if (status.type === "busy") {
-    ensureRunStarted(sessionID, "unknown", Date.now(), ctx);
-  }
+function handleSessionCompacted(e, ctx) {
+  compactionHandlers.complete(e.properties.sessionID, ctx);
 }
 
 // src/handlers/message.ts
-var import_api5 = __toESM(require_src(), 1);
-var OPENINFERENCE_SPAN_KIND2 = SemanticConventions.OPENINFERENCE_SPAN_KIND;
+var import_api8 = __toESM(require_src(), 1);
+var OPENINFERENCE_SPAN_KIND5 = SemanticConventions.OPENINFERENCE_SPAN_KIND;
 var LLM_FINISH_REASON = "llm.finish_reason";
+function resolveToolTraceContext(sessionID, assistantMessageID, ctx) {
+  const interactionID = interactionHandlers.resolveAssistant(assistantMessageID, undefined, ctx);
+  if (interactionID) {
+    const interactionContext = tryResolveInteractionTraceContext(interactionID, ctx);
+    if (interactionContext) {
+      return interactionContext;
+    }
+  }
+  return resolveSessionTraceContext(sessionID, ctx);
+}
 function getRunAgentMeta(sessionID, ctx) {
   const run = ctx.activeRunSpans.get(sessionID);
   return {
@@ -53302,11 +53841,13 @@ function getRunAgentMeta(sessionID, ctx) {
   };
 }
 function taskMetadata(toolPart) {
-  if (toolPart.tool !== "task" || !("metadata" in toolPart.state))
+  if (toolPart.tool !== "task" || !("metadata" in toolPart.state)) {
     return;
+  }
   const metadata = toolPart.state.metadata;
-  if (!metadata || metadata.background === true || typeof metadata.sessionId !== "string")
+  if (!metadata || metadata.background === true || typeof metadata.sessionId !== "string") {
     return;
+  }
   const input = toolPart.state.input;
   const agent = input && typeof input.subagent_type === "string" ? input.subagent_type : undefined;
   return {
@@ -53322,24 +53863,25 @@ function removePendingSubagentRun(sessionID, taskCallID, ctx) {
 }
 function bindSubagentRun(toolPart, toolSpan, ctx) {
   const task = taskMetadata(toolPart);
-  if (!task)
+  if (!task) {
     return;
-  toolSpan?.setAttributes({
+  }
+  toolSpan.setAttributes({
     "subagent.session.id": task.childSessionID,
     ...task.agent ? { "subagent.agent.name": task.agent } : {}
   });
-  const existing = ctx.pendingSubagentRuns.get(task.childSessionID);
   setBoundedMap(ctx.pendingSubagentRuns, task.childSessionID, {
     agentType: "subagent",
     parentSessionID: task.parentSessionID,
     taskCallID: toolPart.callID,
-    taskSpanContext: toolSpan?.spanContext() ?? existing?.taskSpanContext
+    taskSpanContext: toolSpan.spanContext()
   });
 }
 function recordLlmOutputEnd(toolPart, outputEndTime, ctx) {
   const active = ctx.activeMessageSpans.get(toolPart.sessionID);
-  if (!active || active.messageID !== toolPart.messageID)
+  if (!active || active.messageID !== toolPart.messageID) {
     return;
+  }
   setBoundedMap(ctx.activeMessageSpans, toolPart.sessionID, {
     ...active,
     outputEndTime: Math.max(active.outputEndTime ?? 0, outputEndTime)
@@ -53347,12 +53889,15 @@ function recordLlmOutputEnd(toolPart, outputEndTime, ctx) {
 }
 function handleMessageUpdated(e, ctx) {
   const msg = e.properties.info;
-  if (msg.role !== "assistant")
+  if (msg.role !== "assistant") {
     return;
+  }
   const assistant = msg;
-  setBoundedMap(ctx.assistantInteractions, assistant.id, assistant.parentID);
-  if (!assistant.time.completed)
+  const interactionID = interactionHandlers.resolveAssistant(assistant.id, assistant.parentID, ctx) ?? compactionHandlers.recoverOwner(assistant.sessionID, assistant.parentID, ctx);
+  interactionHandlers.bindAssistant(assistant.id, interactionID, ctx);
+  if (!assistant.time.completed) {
     return;
+  }
   const { sessionID } = assistant;
   const msgKey = `${sessionID}:${assistant.id}`;
   const activeMessage = ctx.activeMessageSpans.get(sessionID);
@@ -53364,7 +53909,9 @@ function handleMessageUpdated(e, ctx) {
   const messageAgent = assistant.agent ?? assistant.mode;
   const agentName = messageAgent || runAgent.agentName;
   const agentType = runAgent.agentType;
-  if (messageAgent && run) {
+  const contextOverflow = compactionHandlers.contextOverflowForMessage(sessionID, assistant.id, ctx);
+  const assistantError = assistant.error ? errorSummary(assistant.error) : contextOverflow?.error;
+  if (messageAgent && run && assistant.summary !== true) {
     run.agent = messageAgent;
     run.span.setAttribute(AGENT_NAME, messageAgent);
   }
@@ -53376,14 +53923,12 @@ function handleMessageUpdated(e, ctx) {
     run.cost += assistant.cost;
     run.messages += 1;
   }
-  const interactionID = ctx.assistantInteractions.get(assistant.id) ?? assistant.parentID;
-  accumulateInteractionTotals(interactionID, totalTokens, assistant.cost, ctx);
+  if (interactionID) {
+    interactionHandlers.recordUsage(interactionID, totalTokens, assistant.cost, ctx);
+  }
   const outputText = ctx.messageOutputs.get(msgKey);
-  if (assistant.summary !== true && ctx.interactionSpans.has(interactionID)) {
-    setBoundedMap(ctx.interactionCompletions, interactionID, {
-      endTime: assistant.time.completed,
-      output: outputText
-    });
+  if (assistant.summary !== true && interactionID) {
+    interactionHandlers.recordCompletion(interactionID, assistant.time.completed, outputText, ctx);
   }
   const msgSpan = ctx.messageSpans.get(msgKey);
   if (msgSpan) {
@@ -53397,7 +53942,7 @@ function handleMessageUpdated(e, ctx) {
       [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: assistant.tokens.cache.read,
       [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: assistant.tokens.cache.write,
       [LLM_TOKEN_COUNT_TOTAL]: totalTokens,
-      [LLM_FINISH_REASON]: assistant.error ? "error" : assistant.finish ?? "stop",
+      [LLM_FINISH_REASON]: assistantError ? "error" : assistant.finish ?? "stop",
       [LLM_COST_TOTAL]: assistant.cost,
       ...outputText && !telemetryOutput ? {
         [OUTPUT_VALUE]: outputText,
@@ -53406,12 +53951,16 @@ function handleMessageUpdated(e, ctx) {
         [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: outputText
       } : {},
       cost_usd: assistant.cost,
-      duration_ms: duration
+      duration_ms: duration,
+      ...contextOverflow ? { "error.type": "ContextOverflowError" } : {}
     });
-    if (assistant.error) {
-      msgSpan.setStatus({ code: import_api5.SpanStatusCode.ERROR, message: errorSummary(assistant.error) });
+    if (assistantError) {
+      msgSpan.setStatus({
+        code: import_api8.SpanStatusCode.ERROR,
+        message: assistantError
+      });
     } else {
-      msgSpan.setStatus({ code: import_api5.SpanStatusCode.OK });
+      msgSpan.setStatus({ code: import_api8.SpanStatusCode.OK });
     }
     msgSpan.end(outputEndTime);
     ctx.messageSpans.delete(msgKey);
@@ -53428,14 +53977,21 @@ function handleMessageUpdated(e, ctx) {
     ctx.activeMessageSpans.delete(sessionID);
   }
   ctx.llmTelemetryOutputs.delete(msgKey);
-  ctx.pendingAssistantInteractions.delete(msgKey);
-  if (assistant.error || !ctx.activeRunSpans.has(sessionID) && ctx.interactionSpans.has(interactionID)) {
+  interactionHandlers.completeAssistant(msgKey, ctx);
+  const compaction = compactionHandlers.resolve(sessionID, assistant.parentID, ctx);
+  if (assistant.error && compaction) {
+    compactionHandlers.fail(sessionID, errorSummary(assistant.error), ctx);
+  }
+  if (interactionID && (assistant.error || !ctx.activeRunSpans.has(sessionID) && interactionHandlers.has(interactionID, ctx))) {
     const interactionError = assistant.error ? errorSummary(assistant.error) : undefined;
-    endInteractionSpan(interactionID, sessionID, interactionError ? import_api5.SpanStatusCode.ERROR : import_api5.SpanStatusCode.OK, ctx, assistant.time.completed, interactionError);
+    interactionHandlers.end(interactionID, sessionID, interactionError ? import_api8.SpanStatusCode.ERROR : import_api8.SpanStatusCode.OK, ctx, assistant.time.completed, interactionError);
   }
 }
 function handleMessagePartUpdated(e, ctx) {
   const part = e.properties.part;
+  if (compactionHandlers.handlePart(part, ctx)) {
+    return;
+  }
   if (part.type === "text") {
     const key = `${part.sessionID}:${part.messageID}`;
     ctx.messageOutputs.set(key, `${ctx.messageOutputs.get(key) ?? ""}${part.text}`);
@@ -53447,7 +54003,7 @@ function handleMessagePartUpdated(e, ctx) {
     if (toolPart.state.status === "running") {
       const pending2 = ctx.pendingToolSpans.get(key);
       if (pending2) {
-        pending2.span?.setAttributes({
+        pending2.span.setAttributes({
           [TOOL_PARAMETERS]: JSON.stringify(toolPart.state.input),
           [INPUT_VALUE]: JSON.stringify(toolPart.state.input)
         });
@@ -53456,121 +54012,142 @@ function handleMessagePartUpdated(e, ctx) {
       }
       recordLlmOutputEnd(toolPart, toolPart.state.time.start, ctx);
       const { agentName: agentName2, agentType: agentType2 } = getRunAgentMeta(toolPart.sessionID, ctx);
-      const toolSpan = isTraceEnabled("tool", ctx) ? (() => {
-        return ctx.tracer.startSpan(`${ctx.tracePrefix}tool.${toolPart.tool}`, {
-          startTime: toolPart.state.time.start,
-          kind: import_api5.SpanKind.INTERNAL,
-          attributes: {
-            [OPENINFERENCE_SPAN_KIND2]: OpenInferenceSpanKind.TOOL,
-            [SESSION_ID]: toolPart.sessionID,
-            [TOOL_ID]: toolPart.callID,
-            [TOOL_NAME]: toolPart.tool,
-            [TOOL_PARAMETERS]: JSON.stringify(toolPart.state.input),
-            [INPUT_VALUE]: JSON.stringify(toolPart.state.input),
-            [INPUT_MIME_TYPE]: MimeType.JSON,
-            [AGENT_NAME]: agentName2,
-            "agent.type": agentType2,
-            ...ctx.commonAttrs
-          }
-        }, resolveSessionTraceContext(toolPart.sessionID, ctx, {
-          assistantMessageID: toolPart.messageID
-        }));
-      })() : undefined;
+      const toolSpan2 = ctx.tracer.startSpan(`${ctx.tracePrefix}tool.${toolPart.tool}`, {
+        startTime: toolPart.state.time.start,
+        kind: import_api8.SpanKind.INTERNAL,
+        attributes: {
+          [OPENINFERENCE_SPAN_KIND5]: OpenInferenceSpanKind.TOOL,
+          [SESSION_ID]: toolPart.sessionID,
+          [TOOL_ID]: toolPart.callID,
+          [TOOL_NAME]: toolPart.tool,
+          [TOOL_PARAMETERS]: JSON.stringify(toolPart.state.input),
+          [INPUT_VALUE]: JSON.stringify(toolPart.state.input),
+          [INPUT_MIME_TYPE]: MimeType.JSON,
+          [AGENT_NAME]: agentName2,
+          "agent.type": agentType2,
+          ...ctx.commonAttrs
+        }
+      }, resolveToolTraceContext(toolPart.sessionID, toolPart.messageID, ctx));
       setBoundedMap(ctx.pendingToolSpans, key, {
         tool: toolPart.tool,
         sessionID: toolPart.sessionID,
         startMs: toolPart.state.time.start,
-        span: toolSpan
+        span: toolSpan2
       });
-      bindSubagentRun(toolPart, toolSpan, ctx);
+      bindSubagentRun(toolPart, toolSpan2, ctx);
       return;
     }
-    if (toolPart.state.status !== "completed" && toolPart.state.status !== "error")
+    if (toolPart.state.status !== "completed" && toolPart.state.status !== "error") {
       return;
+    }
     const pending = ctx.pendingToolSpans.get(key);
     ctx.pendingToolSpans.delete(key);
     const start = pending?.startMs ?? toolPart.state.time.start;
     const end = toolPart.state.time.end;
-    if (end === undefined)
+    if (end === undefined) {
       return;
+    }
+    permissionHandlers.endTool(toolPart.sessionID, toolPart.callID, ctx, "tool ended before permission reply");
     const success = toolPart.state.status === "completed";
     const { agentName, agentType } = getRunAgentMeta(toolPart.sessionID, ctx);
     const task = taskMetadata(toolPart);
-    if (task)
+    if (task) {
       removePendingSubagentRun(task.childSessionID, toolPart.callID, ctx);
-    if (isTraceEnabled("tool", ctx)) {
-      const toolSpan = pending?.span ?? (() => {
-        return ctx.tracer.startSpan(`${ctx.tracePrefix}tool.${toolPart.tool}`, {
-          startTime: start,
-          kind: import_api5.SpanKind.INTERNAL,
-          attributes: {
-            [OPENINFERENCE_SPAN_KIND2]: OpenInferenceSpanKind.TOOL,
-            [SESSION_ID]: toolPart.sessionID,
-            [TOOL_ID]: toolPart.callID,
-            [TOOL_NAME]: toolPart.tool,
-            [TOOL_PARAMETERS]: JSON.stringify(toolPart.state.input),
-            [INPUT_VALUE]: JSON.stringify(toolPart.state.input),
-            [INPUT_MIME_TYPE]: MimeType.JSON,
-            ...ctx.commonAttrs
-          }
-        }, resolveSessionTraceContext(toolPart.sessionID, ctx, {
-          assistantMessageID: toolPart.messageID
-        }));
-      })();
-      toolSpan.setAttributes({ [AGENT_NAME]: agentName, "agent.type": agentType });
-      toolSpan.setAttribute("tool.success", success);
-      if (success) {
-        const output = toolPart.state.output;
-        toolSpan.setAttributes({
-          [OUTPUT_VALUE]: output,
-          [OUTPUT_MIME_TYPE]: MimeType.TEXT
-        });
-        toolSpan.setAttribute("tool.result_size_bytes", Buffer.byteLength(output, "utf8"));
-        toolSpan.setStatus({ code: import_api5.SpanStatusCode.OK });
-      } else {
-        const err = toolPart.state.error;
-        toolSpan.setAttributes({
-          [OUTPUT_VALUE]: err,
-          [OUTPUT_MIME_TYPE]: MimeType.TEXT
-        });
-        toolSpan.setAttribute("tool.error", err);
-        toolSpan.setStatus({ code: import_api5.SpanStatusCode.ERROR, message: err });
-      }
-      toolSpan.end(end);
     }
+    const toolSpan = pending?.span ?? (() => {
+      return ctx.tracer.startSpan(`${ctx.tracePrefix}tool.${toolPart.tool}`, {
+        startTime: start,
+        kind: import_api8.SpanKind.INTERNAL,
+        attributes: {
+          [OPENINFERENCE_SPAN_KIND5]: OpenInferenceSpanKind.TOOL,
+          [SESSION_ID]: toolPart.sessionID,
+          [TOOL_ID]: toolPart.callID,
+          [TOOL_NAME]: toolPart.tool,
+          [TOOL_PARAMETERS]: JSON.stringify(toolPart.state.input),
+          [INPUT_VALUE]: JSON.stringify(toolPart.state.input),
+          [INPUT_MIME_TYPE]: MimeType.JSON,
+          ...ctx.commonAttrs
+        }
+      }, resolveToolTraceContext(toolPart.sessionID, toolPart.messageID, ctx));
+    })();
+    toolSpan.setAttributes({
+      [AGENT_NAME]: agentName,
+      "agent.type": agentType
+    });
+    toolSpan.setAttribute("tool.success", success);
+    if (success) {
+      const output = toolPart.state.output;
+      toolSpan.setAttributes({
+        [OUTPUT_VALUE]: output,
+        [OUTPUT_MIME_TYPE]: MimeType.TEXT
+      });
+      toolSpan.setAttribute("tool.result_size_bytes", Buffer.byteLength(output, "utf8"));
+      toolSpan.setStatus({ code: import_api8.SpanStatusCode.OK });
+    } else {
+      const err = toolPart.state.error;
+      toolSpan.setAttributes({
+        [OUTPUT_VALUE]: err,
+        [OUTPUT_MIME_TYPE]: MimeType.TEXT
+      });
+      if (pending?.errorType) {
+        toolSpan.setAttribute("error.type", pending.errorType);
+      }
+      toolSpan.setStatus({ code: import_api8.SpanStatusCode.ERROR, message: err });
+    }
+    toolSpan.end(end);
   }
 }
 function startMessageSpan(sessionID, messageID, parentID, modelID, providerID, startTime, ctx, messageAgent) {
   const msgKey = `${sessionID}:${messageID}`;
-  setBoundedMap(ctx.assistantInteractions, messageID, parentID);
-  setBoundedMap(ctx.pendingAssistantInteractions, msgKey, { sessionID, interactionID: parentID });
-  if (!isTraceEnabled("llm", ctx))
+  const compaction = compactionHandlers.resolve(sessionID, parentID, ctx);
+  const interactionID = compaction?.ownerInteractionID ?? interactionHandlers.owner(parentID, sessionID, ctx) ?? compactionHandlers.recoverOwner(sessionID, parentID, ctx);
+  interactionHandlers.trackAssistant(messageID, msgKey, sessionID, interactionID, ctx);
+  if (ctx.messageSpans.has(msgKey)) {
     return;
-  if (ctx.messageSpans.has(msgKey))
-    return;
+  }
   const run = ctx.activeRunSpans.get(sessionID);
   const runAgent = getRunAgentMeta(sessionID, ctx);
   const agentName = messageAgent || runAgent.agentName;
   const agentType = runAgent.agentType;
-  if (messageAgent && run) {
+  if (messageAgent && run && !compaction) {
     run.agent = messageAgent;
     run.span.setAttribute(AGENT_NAME, messageAgent);
   }
-  const inputText = ctx.interactionInputs.get(parentID);
+  const inputText = interactionHandlers.input(parentID, ctx);
+  const parentContext = compaction?.parentContext ?? (interactionID ? tryResolveInteractionTraceContext(interactionID, ctx) : undefined) ?? resolveSessionTraceContext(sessionID, ctx);
   const msgSpan = ctx.tracer.startSpan(`${ctx.tracePrefix}llm`, {
     startTime,
-    kind: import_api5.SpanKind.CLIENT,
+    kind: import_api8.SpanKind.CLIENT,
     attributes: {
-      [OPENINFERENCE_SPAN_KIND2]: OpenInferenceSpanKind.LLM,
+      [OPENINFERENCE_SPAN_KIND5]: OpenInferenceSpanKind.LLM,
       [SESSION_ID]: sessionID,
+      "opencode.message.id": messageID,
       [AGENT_NAME]: agentName,
       "agent.type": agentType,
       [LLM_SYSTEM]: providerID,
       [LLM_PROVIDER]: providerID,
       "gen_ai.provider.name": genAiProviderName(providerID),
       [LLM_MODEL_NAME]: modelID,
+      [LLM_TOKEN_COUNT_PROMPT]: 0,
+      [LLM_TOKEN_COUNT_COMPLETION]: 0,
+      [LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING]: 0,
+      [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ]: 0,
+      [LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE]: 0,
+      [LLM_TOKEN_COUNT_TOTAL]: 0,
+      [LLM_FINISH_REASON]: "unknown",
+      [LLM_COST_TOTAL]: 0,
+      cost_usd: 0,
+      duration_ms: 0,
       [OUTPUT_VALUE]: "",
       [OUTPUT_MIME_TYPE]: MimeType.TEXT,
+      ...compaction ? {
+        "opencode.compaction.id": compaction.markerMessageID,
+        "opencode.llm.purpose": "compaction",
+        "opencode.compaction.overflow": compaction.overflow,
+        ...compaction.triggerMessageID ? {
+          "opencode.compaction.trigger_message.id": compaction.triggerMessageID
+        } : {}
+      } : {},
       ...inputText ? {
         [INPUT_VALUE]: inputText,
         [INPUT_MIME_TYPE]: MimeType.TEXT,
@@ -53579,7 +54156,7 @@ function startMessageSpan(sessionID, messageID, parentID, modelID, providerID, s
       } : {},
       ...ctx.commonAttrs
     }
-  }, resolveSessionTraceContext(sessionID, ctx, { interactionID: parentID, assistantMessageID: messageID }));
+  }, parentContext);
   setBoundedMap(ctx.messageSpans, msgKey, msgSpan);
   const requestKey = `${sessionID}:${parentID}`;
   setBoundedMap(ctx.llmRequestContexts, requestKey, [
@@ -53592,24 +54169,32 @@ function startMessageSpan(sessionID, messageID, parentID, modelID, providerID, s
       spanContext: msgSpan.spanContext()
     }
   ]);
-  setBoundedMap(ctx.activeMessageSpans, sessionID, { messageID, span: msgSpan });
+  setBoundedMap(ctx.activeMessageSpans, sessionID, {
+    messageID,
+    span: msgSpan
+  });
 }
 
 // src/handlers/chat-headers.ts
 function handleChatHeaders(input, output, ctx) {
   const providerID = input.model.providerID;
   const request = ctx.llmRequestContexts.get(`${input.sessionID}:${input.message.id}`)?.findLast((candidate) => candidate.agent === input.agent && candidate.modelID === input.model.id && candidate.providerID === providerID);
-  if (!request)
+  if (!request) {
     return;
+  }
   const msgKey = `${input.sessionID}:${request.messageID}`;
   const span = ctx.messageSpans.get(msgKey);
   if (span) {
     const requestID = crypto.randomUUID();
     output.headers[LLM_TELEMETRY_REQUEST_HEADER] = requestID;
-    setBoundedMap(ctx.llmTelemetryBindings.pendingByRequestID, requestID, { msgKey, span });
+    setBoundedMap(ctx.llmTelemetryBindings.pendingByRequestID, requestID, {
+      msgKey,
+      span
+    });
   }
-  if (!ctx.tracePropagationProviders.has(providerID) && !ctx.tracePropagationProviders.has("*"))
+  if (!ctx.tracePropagationProviders.has(providerID) && !ctx.tracePropagationProviders.has("*")) {
     return;
+  }
   injectTraceContext(request.spanContext, output.headers);
 }
 
@@ -72972,37 +73557,48 @@ function json3(value) {
   const seen = new WeakSet;
   try {
     return JSON.stringify(value, (_key, current) => {
-      if (typeof current === "bigint")
+      if (typeof current === "bigint") {
         return current.toString();
-      if (typeof current === "function" || typeof current === "symbol")
+      }
+      if (typeof current === "function" || typeof current === "symbol") {
         return;
-      if (current instanceof Uint8Array)
+      }
+      if (current instanceof Uint8Array) {
         return Buffer.from(current).toString("base64");
+      }
       if (current && typeof current === "object") {
-        if (seen.has(current))
+        if (seen.has(current)) {
           return "[Circular]";
+        }
         seen.add(current);
       }
       return current;
     }) ?? "null";
   } catch (error45) {
-    return JSON.stringify({ serializationError: error45 instanceof Error ? error45.message : String(error45) });
+    return JSON.stringify({
+      serializationError: error45 instanceof Error ? error45.message : String(error45)
+    });
   }
 }
 function active(input, ctx) {
-  if (input.functionId !== "session.llm")
+  if (input.functionId !== "session.llm") {
     return;
+  }
   const correlated = input.metadata && ctx.llmTelemetryBindings.byLifecycleMetadata.get(input.metadata);
-  if (correlated)
+  if (correlated) {
     return correlated;
-  if (!input.headers)
+  }
+  if (!input.headers) {
     return;
+  }
   const requestID = input.headers[LLM_TELEMETRY_REQUEST_HEADER];
-  if (!requestID)
+  if (!requestID) {
     return;
+  }
   const target = ctx.llmTelemetryBindings.pendingByRequestID.get(requestID);
-  if (!target)
+  if (!target) {
     return;
+  }
   ctx.llmTelemetryBindings.pendingByRequestID.delete(requestID);
   delete input.headers[LLM_TELEMETRY_REQUEST_HEADER];
   if (input.metadata) {
@@ -73011,11 +73607,13 @@ function active(input, ctx) {
   return target;
 }
 function imageUrl(value, mediaType) {
-  if (value instanceof URL)
+  if (value instanceof URL) {
     return value.toString();
+  }
   if (typeof value === "string") {
-    if (/^(?:data:|https?:\/\/)/.test(value) || typeof mediaType !== "string")
+    if (/^(?:data:|https?:\/\/)/.test(value) || typeof mediaType !== "string") {
       return value;
+    }
     return `data:${mediaType};base64,${value}`;
   }
   if (value instanceof Uint8Array && typeof mediaType === "string") {
@@ -73026,8 +73624,9 @@ function imageUrl(value, mediaType) {
   }
 }
 function cleanContentPart(value) {
-  if (!isRecord(value) || typeof value.type !== "string")
+  if (!isRecord(value) || typeof value.type !== "string") {
     return;
+  }
   if ((value.type === "text" || value.type === "reasoning") && typeof value.text === "string") {
     return { type: value.type, text: value.text };
   }
@@ -73042,13 +73641,15 @@ function cleanContentPart(value) {
   const file2 = value.type === "file" && isRecord(value.file) ? value.file : value;
   if (value.type === "image" || value.type === "file" && typeof file2.mediaType === "string" && file2.mediaType.startsWith("image/")) {
     const url2 = imageUrl(value.image ?? file2.data ?? file2.base64 ?? file2.uint8Array ?? file2.url, file2.mediaType);
-    if (url2)
+    if (url2) {
       return { type: "image", imageUrl: url2 };
+    }
   }
 }
 function toolResultContent(value) {
-  if (typeof value === "string")
+  if (typeof value === "string") {
     return value;
+  }
   if (isRecord(value) && value.value !== undefined) {
     return typeof value.value === "string" ? value.value : json3(value.value);
   }
@@ -73057,14 +73658,16 @@ function toolResultContent(value) {
 function cleanMessages(values) {
   const messages = [];
   for (const value of values) {
-    if (!isRecord(value) || typeof value.role !== "string")
+    if (!isRecord(value) || typeof value.role !== "string") {
       continue;
+    }
     const role = value.role;
     if (role === "tool" && Array.isArray(value.content)) {
       let added = false;
       for (const part of value.content) {
-        if (!isRecord(part) || part.type !== "tool-result")
+        if (!isRecord(part) || part.type !== "tool-result") {
           continue;
+        }
         messages.push({
           role,
           content: toolResultContent(part.output),
@@ -73072,29 +73675,35 @@ function cleanMessages(values) {
         });
         added = true;
       }
-      if (added)
+      if (added) {
         continue;
+      }
     }
     if (typeof value.content === "string") {
       messages.push({ role, content: value.content });
       continue;
     }
-    if (!Array.isArray(value.content))
+    if (!Array.isArray(value.content)) {
       continue;
+    }
     const content = value.content.map(cleanContentPart).filter((part) => part !== undefined);
-    if (content.length > 0)
+    if (content.length > 0) {
       messages.push({ role, content });
+    }
   }
   return messages;
 }
 function providerInstructions(value) {
-  if (!isRecord(value))
+  if (!isRecord(value)) {
     return;
-  if (typeof value.instructions === "string")
+  }
+  if (typeof value.instructions === "string") {
     return value.instructions;
+  }
   for (const options of Object.values(value)) {
-    if (isRecord(options) && typeof options.instructions === "string")
+    if (isRecord(options) && typeof options.instructions === "string") {
       return options.instructions;
+    }
   }
 }
 function inputMessages(event) {
@@ -73109,13 +73718,15 @@ function inputMessages(event) {
 function outputMessages(event) {
   const messages = cleanMessages(event.response.messages).filter((message) => message.role === "assistant");
   const generated = event.content.map(cleanContentPart).filter((part) => part !== undefined);
-  if (generated.length === 0)
+  if (generated.length === 0) {
     return messages;
+  }
   const assistant = messages.find((message) => message.role === "assistant");
-  if (assistant)
+  if (assistant) {
     assistant.content = generated;
-  else
+  } else {
     messages.push({ role: "assistant", content: generated });
+  }
   return messages;
 }
 function messageAttributes(prefix, messages) {
@@ -73123,8 +73734,9 @@ function messageAttributes(prefix, messages) {
   messages.forEach((message, messageIndex) => {
     const messagePrefix = `${prefix}.${messageIndex}`;
     attributes[`${messagePrefix}.${MESSAGE_ROLE}`] = message.role;
-    if (message.toolCallId)
+    if (message.toolCallId) {
       attributes[`${messagePrefix}.${MESSAGE_TOOL_CALL_ID}`] = message.toolCallId;
+    }
     if (typeof message.content === "string") {
       attributes[`${messagePrefix}.${MESSAGE_CONTENT}`] = message.content;
       return;
@@ -73137,10 +73749,12 @@ function messageAttributes(prefix, messages) {
       } else if (content.type === "image") {
         attributes[`${contentPrefix}.${MESSAGE_CONTENT_IMAGE}.${IMAGE_URL}`] = content.imageUrl;
       } else if (content.type === "tool_use") {
-        if (content.id)
+        if (content.id) {
           attributes[`${contentPrefix}.${TOOL_CALL_ID}`] = content.id;
-        if (content.name)
+        }
+        if (content.name) {
           attributes[`${contentPrefix}.${TOOL_CALL_FUNCTION_NAME}`] = content.name;
+        }
         if (content.arguments !== undefined) {
           attributes[`${contentPrefix}.${TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = json3(content.arguments);
         }
@@ -73150,13 +73764,15 @@ function messageAttributes(prefix, messages) {
   return attributes;
 }
 function headerAttribute(key, headers) {
-  if (!headers)
+  if (!headers) {
     return {};
+  }
   const values = {};
   for (const [name21, value] of Object.entries(headers)) {
     const normalized = name21.trim().toLowerCase();
-    if (!normalized || value === undefined)
+    if (!normalized || value === undefined) {
       continue;
+    }
     values[normalized] = value;
   }
   return Object.keys(values).length > 0 ? { [key]: json3(values) } : {};
@@ -73180,13 +73796,15 @@ function inputSchema(value) {
 }
 function toolAttributes(event) {
   const attributes = {};
-  if (!event.tools)
+  if (!event.tools) {
     return attributes;
+  }
   const activeTools = event.activeTools ? new Set(event.activeTools) : undefined;
   const tools = Object.entries(event.tools).filter(([name21]) => !activeTools || activeTools.has(name21));
   tools.forEach(([name21, value], index) => {
-    if (!isRecord(value))
+    if (!isRecord(value)) {
       return;
+    }
     attributes[`${LLM_TOOLS}.${index}.${TOOL_JSON_SCHEMA}`] = json3({
       type: "function",
       function: {
@@ -73200,14 +73818,16 @@ function toolAttributes(event) {
 }
 function handleAiTelemetryStart(event, ctx) {
   const current = active(event, ctx);
-  if (!current)
+  if (!current) {
     return;
+  }
   current.span.setAttribute(LLM_INVOCATION_PARAMETERS, json3(invocationParameters(event)));
 }
 function handleAiTelemetryStepStart(event, ctx) {
   const current = active(event, ctx);
-  if (!current)
+  if (!current) {
     return;
+  }
   const messages = inputMessages(event);
   current.span.setAttributes({
     [INPUT_VALUE]: json3(messages),
@@ -73219,8 +73839,9 @@ function handleAiTelemetryStepStart(event, ctx) {
 }
 function handleAiTelemetryStepFinish(event, ctx) {
   const current = active(event, ctx);
-  if (!current)
+  if (!current) {
     return;
+  }
   const messages = outputMessages(event);
   current.span.setAttributes({
     [OUTPUT_VALUE]: json3(messages),
@@ -73232,7 +73853,10 @@ function handleAiTelemetryStepFinish(event, ctx) {
 }
 function getBroker() {
   const root = globalThis;
-  root.__opencodePluginOtelAiTelemetry ??= { installed: false, listeners: new Set };
+  root.__opencodePluginOtelAiTelemetry ??= {
+    installed: false,
+    listeners: new Set
+  };
   const broker = root.__opencodePluginOtelAiTelemetry;
   if (!broker.installed) {
     const integration = {
@@ -73290,11 +73914,13 @@ async function queryUserByToken(token, config2) {
     body: JSON.stringify({ token }),
     signal: AbortSignal.timeout(config2.timeoutMs)
   });
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(`queryUserByToken failed with HTTP ${response.status}`);
+  }
   const payload = await response.json();
-  if (!payload || typeof payload !== "object")
+  if (!payload || typeof payload !== "object") {
     return {};
+  }
   const candidate = payload;
   const code = typeof candidate.code === "number" ? candidate.code : undefined;
   const rawUserID = code === 0 ? candidate.result?.ssicNo : undefined;
@@ -73305,11 +73931,13 @@ async function queryUserByToken(token, config2) {
 function apiKeyFromProviders(providers) {
   for (const provider of Object.values(providers ?? {})) {
     const apiKey = provider.options?.apiKey;
-    if (typeof apiKey !== "string")
+    if (typeof apiKey !== "string") {
       continue;
+    }
     const token = apiKey.trim();
-    if (token)
+    if (token) {
       return token;
+    }
   }
 }
 function createUserIDResolver(config2) {
@@ -73333,8 +73961,9 @@ function createUserIDResolver(config2) {
     pendingResolution = undefined;
   };
   const completeResolution = (requestToken, requestTokenVersion, userID) => {
-    if (requestTokenVersion !== tokenVersion || requestToken !== currentToken)
+    if (requestTokenVersion !== tokenVersion || requestToken !== currentToken) {
       return currentUserID();
+    }
     resolvedUserID = userID;
     cooldownUntil = userID === undefined ? Date.now() + config2.cooldownMs : 0;
     return currentUserID();
@@ -73356,8 +73985,9 @@ function createUserIDResolver(config2) {
           code: result.code,
           resolved: result.userID !== undefined
         });
-        if (result.userID)
+        if (result.userID) {
           return result.userID;
+        }
         failure = "response did not contain a valid user ID";
       } catch (error45) {
         failure = error45 instanceof Error ? error45.message : String(error45);
@@ -73371,33 +74001,40 @@ function createUserIDResolver(config2) {
         retrying: delayMs !== undefined,
         ...delayMs === undefined ? {} : { retryDelayMs: delayMs }
       });
-      if (delayMs === undefined)
+      if (delayMs === undefined) {
         return;
+      }
       await new Promise((resolve2) => setTimeout(resolve2, delayMs));
     }
   };
   const resolveUserID = (providers) => {
     const token = apiKeyFromProviders(providers);
     if (!token) {
-      if (currentToken !== undefined)
+      if (currentToken !== undefined) {
         resetForToken();
+      }
       return Promise.resolve(UNKNOWN_USER_ID);
     }
-    if (token !== currentToken)
+    if (token !== currentToken) {
       resetForToken(token);
-    if (resolvedUserID !== undefined)
+    }
+    if (resolvedUserID !== undefined) {
       return Promise.resolve(resolvedUserID);
-    if (Date.now() < cooldownUntil)
+    }
+    if (Date.now() < cooldownUntil) {
       return Promise.resolve(UNKNOWN_USER_ID);
-    if (pendingResolution)
+    }
+    if (pendingResolution) {
       return pendingResolution;
+    }
     const requestTokenVersion = tokenVersion;
     const request = fetchUserIDWithRetry(token).then((userID) => completeResolution(token, requestTokenVersion, userID)).catch(() => completeResolution(token, requestTokenVersion, undefined));
     pendingResolution = request;
     request.finally(() => {
-      if (pendingResolution === request)
+      if (pendingResolution === request) {
         pendingResolution = undefined;
-    });
+      }
+    }).catch(() => {});
     return request;
   };
   return resolveUserID;
@@ -73413,11 +74050,13 @@ function createUserIDManager(config2, ctx, baseCommonAttrs) {
   });
   let configuredProviders;
   const updateCommonAttrs = async () => {
-    if (isResolvedUserID(ctx.commonAttrs[USER_ID]))
+    if (isResolvedUserID(ctx.commonAttrs[USER_ID])) {
       return;
+    }
     const userID = await resolveUserID(configuredProviders);
-    if (ctx.commonAttrs[USER_ID] === userID)
+    if (ctx.commonAttrs[USER_ID] === userID) {
       return;
+    }
     ctx.commonAttrs = {
       ...baseCommonAttrs,
       [USER_ID]: userID
@@ -73428,22 +74067,42 @@ function createUserIDManager(config2, ctx, baseCommonAttrs) {
   };
   const configure = async (nextProviders) => {
     configuredProviders = nextProviders;
-    if (config2.userIDEnabled)
+    if (config2.userIDEnabled) {
       await updateCommonAttrs();
+    }
   };
   const refreshInBackground = () => {
-    if (!config2.userIDEnabled)
+    if (!config2.userIDEnabled) {
       return;
-    updateCommonAttrs().catch((error45) => {
-      ctx.log("warn", "user ID update failed", {
-        error: error45 instanceof Error ? error45.message : String(error45)
-      });
-    });
+    }
+    updateCommonAttrs().catch((error45) => ctx.log("warn", "user ID update failed", {
+      error: error45 instanceof Error ? error45.message : String(error45)
+    }).catch(() => {}));
   };
   return {
     configure,
     refreshInBackground
   };
+}
+
+// src/opencode-version.ts
+var UNKNOWN_VERSION2 = "unknown";
+async function resolveOpenCodeVersion(client) {
+  try {
+    const transport = client._client;
+    if (!transport) {
+      return UNKNOWN_VERSION2;
+    }
+    const result = await transport.get({ url: "/global/health" });
+    const data = result.data;
+    if (typeof data !== "object" || data === null || !("version" in data)) {
+      return UNKNOWN_VERSION2;
+    }
+    const version2 = data.version;
+    return typeof version2 === "string" && version2.trim() ? version2.trim() : UNKNOWN_VERSION2;
+  } catch {
+    return UNKNOWN_VERSION2;
+  }
 }
 
 // src/index.ts
@@ -73453,16 +74112,21 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
   const otlpHeadersHelper = resolveHelperPath(config2.otlpHeadersHelper, directory, worktree);
   let minLevel = "info";
   const log = async (level, message, extra) => {
-    if (LEVELS[level] < LEVELS[minLevel])
+    if (LEVELS[level] < LEVELS[minLevel]) {
       return;
-    await client.app.log({ body: { service: "opencode-plugin-otel", level, message, extra } });
+    }
+    await client.app.log({
+      body: { service: "opencode-plugin-otel", level, message, extra }
+    });
   };
   if (!config2.enabled) {
     await log("info", "telemetry disabled (set OPENCODE_ENABLE_TELEMETRY to enable)");
     return {};
   }
+  const serviceVersion = await resolveOpenCodeVersion(client);
   await log("info", "starting up", {
     version: PLUGIN_VERSION,
+    serviceVersion,
     endpoint: config2.endpoint,
     protocol: config2.protocol,
     spanAttributeCountLimit: config2.spanAttributeCountLimit,
@@ -73481,33 +74145,33 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
   });
   const probe = await probeEndpoint(config2.endpoint);
   if (probe.ok) {
-    await log("info", "OTLP endpoint reachable", { endpoint: config2.endpoint, ms: probe.ms });
+    await log("info", "OTLP endpoint reachable", {
+      endpoint: config2.endpoint,
+      ms: probe.ms
+    });
   } else {
     await log("warn", "OTLP endpoint unreachable — exports may fail", {
       endpoint: config2.endpoint,
       error: probe.error
     });
   }
-  const providers = await setupOtel(config2.endpoint, config2.protocol, PLUGIN_VERSION, config2.otlpHeaders, otlpHeadersHelper, config2.spanAttributeCountLimit);
+  const providers = await setupOtel(config2.endpoint, config2.protocol, serviceVersion, config2.otlpHeaders, otlpHeadersHelper, config2.spanAttributeCountLimit);
   const { tracerProvider } = providers;
   await log("info", "OTel SDK initialized");
-  const tracer = import_api6.trace.getTracer("com.opencode");
+  const tracer = tracerProvider.getTracer("opencode-plugin-otel", PLUGIN_VERSION);
   const remoteContext = remoteParentContext(config2.traceparent, config2.tracestate);
   if (config2.traceparent && !remoteContext) {
-    await log("warn", "invalid OPENCODE_TRACEPARENT ignored", { traceparentLength: config2.traceparent.length });
+    await log("warn", "invalid OPENCODE_TRACEPARENT ignored", {
+      traceparentLength: config2.traceparent.length
+    });
   }
-  const rootContext = remoteContext ? () => remoteContext : () => import_api6.ROOT_CONTEXT;
+  const rootContext = remoteContext ? () => remoteContext : () => import_api9.ROOT_CONTEXT;
   const pendingToolSpans = new Map;
+  const pendingPermissionSpans = new Map;
   const activeRunSpans = new Map;
-  const interactionSpans = new Map;
-  const interactionSpanContexts = new Map;
-  const activeInteractions = new Map;
-  const assistantInteractions = new Map;
-  const pendingAssistantInteractions = new Map;
+  const interactionState = createInteractionState();
+  const compactionState = createCompactionState();
   const pendingSubagentRuns = new Map;
-  const interactionInputs = new Map;
-  const interactionTotals = new Map;
-  const interactionCompletions = new Map;
   const sessionParents = new Map;
   const messageSpans = new Map;
   const messageOutputs = new Map;
@@ -73518,32 +74182,22 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
   };
   const activeMessageSpans = new Map;
   const llmTelemetryOutputs = new Map;
-  const { disabledTraces } = config2;
   const commonAttrs = {
     ...parseAttributePairs(config2.spanAttributes),
     "project.id": project.id
   };
-  if (disabledTraces.size > 0) {
-    await log("info", "traces disabled", { disabled: [...disabledTraces] });
-  }
   const ctx = {
     log,
     commonAttrs,
     pendingToolSpans,
-    disabledTraces,
+    pendingPermissionSpans,
     tracer,
     tracePrefix: config2.tracePrefix,
     rootContext,
     activeRunSpans,
-    interactionSpans,
-    interactionSpanContexts,
-    activeInteractions,
-    assistantInteractions,
-    pendingAssistantInteractions,
+    ...interactionState,
+    ...compactionState,
     pendingSubagentRuns,
-    interactionInputs,
-    interactionTotals,
-    interactionCompletions,
     sessionParents,
     messageSpans,
     messageOutputs,
@@ -73556,40 +74210,33 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
   const userIDManager = createUserIDManager(config2, ctx, commonAttrs);
   const unregisterAiTelemetry = registerAiTelemetry(ctx);
   let shuttingDown = false;
-  function takeRunDetails(sessionID) {
-    const details = pendingSubagentRuns.get(sessionID);
-    if (details) {
-      pendingSubagentRuns.delete(sessionID);
-      return details;
-    }
-    const parentSessionID = sessionParents.get(sessionID);
-    return {
-      agentType: parentSessionID ? "subagent" : "primary",
-      ...parentSessionID ? { parentSessionID } : {}
-    };
-  }
   async function flushTelemetry(reason) {
-    if (shuttingDown)
+    if (shuttingDown) {
       return;
+    }
     await tracerProvider.forceFlush();
     await log("debug", "otel: traces flushed", { reason });
   }
   async function shutdown() {
-    if (shuttingDown)
+    if (shuttingDown) {
       return;
+    }
     shuttingDown = true;
     await tracerProvider.forceFlush();
     await tracerProvider.shutdown();
   }
-  process.on("SIGTERM", () => {
+  const handleSigterm = () => {
     shutdown().then(() => process.exit(0)).catch(() => process.exit(1));
-  });
-  process.on("SIGINT", () => {
+  };
+  const handleSigint = () => {
     shutdown().then(() => process.exit(0)).catch(() => process.exit(1));
-  });
-  process.on("beforeExit", () => {
+  };
+  const handleBeforeExit = () => {
     shutdown().catch(() => {});
-  });
+  };
+  process.on("SIGTERM", handleSigterm);
+  process.on("SIGINT", handleSigint);
+  process.on("beforeExit", handleBeforeExit);
   const safe = (name21, fn) => async (...args) => {
     try {
       await fn(...args);
@@ -73603,6 +74250,10 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
   return {
     dispose: async () => {
       unregisterAiTelemetry();
+      process.off("SIGTERM", handleSigterm);
+      process.off("SIGINT", handleSigint);
+      process.off("beforeExit", handleBeforeExit);
+      await shutdown();
     },
     config: async (cfg) => {
       await userIDManager.configure(cfg.provider);
@@ -73620,11 +74271,11 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
       userIDManager.refreshInBackground();
       handleChatHeaders(input, output, ctx);
     }),
-    "chat.message": safe("chat.message", async (input, output) => {
+    "chat.message": safe("chat.message", async (_input, output) => {
       userIDManager.refreshInBackground();
-      const agent = input.agent ?? "unknown";
-      const startTime = Date.now();
-      const details = takeRunDetails(input.sessionID);
+      if (output.parts.length > 0 && output.parts.every((part) => ("synthetic" in part) && part.synthetic === true)) {
+        return;
+      }
       const promptText = output.parts.map((part) => {
         switch (part.type) {
           case "text":
@@ -73640,8 +74291,8 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
         }
       }).filter(Boolean).join(`
 `);
-      const model = input.model ? `${input.model.providerID}/${input.model.modelID}` : "unknown";
-      handleInteractionStarted(output.message.id, input.sessionID, agent, promptText, model, startTime, ctx, details);
+      const message = output.message;
+      interactionHandlers.stage(message.id, message.sessionID, message.agent, promptText, `${message.model.providerID}/${message.model.modelID}`, message.time.created, ctx);
     }),
     event: safe("event", async ({ event }) => {
       userIDManager.refreshInBackground();
@@ -73649,24 +74300,29 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
         case "session.created":
           await handleSessionCreated(event, ctx);
           break;
+        case "session.compacted":
+          handleSessionCompacted(event, ctx);
+          break;
         case "session.idle":
           handleSessionIdle(event, ctx);
           await flushTelemetry("session.idle");
           break;
         case "session.error":
-          handleSessionError(event, ctx);
-          await flushTelemetry("session.error");
-          break;
-        case "session.status":
-          handleSessionStatus(event, ctx);
+          if (handleSessionError(event, ctx) === "terminal") {
+            await flushTelemetry("session.error");
+          }
           break;
         case "message.updated": {
           const msgEvt = event;
           const info = msgEvt.properties.info;
           if (info.role === "user") {
+            compactionHandlers.recordUser(info, ctx);
             break;
           }
-          if (info.role === "assistant" && !info.time?.completed) {
+          if (info.role === "assistant") {
+            interactionHandlers.materialize(info.parentID, info.sessionID, ctx);
+          }
+          if (info.role === "assistant" && !info.time.completed) {
             startMessageSpan(info.sessionID, info.id, info.parentID, info.modelID ?? "unknown", info.providerID ?? "unknown", info.time?.created ?? Date.now(), ctx, info.mode);
           }
           await handleMessageUpdated(msgEvt, ctx);
@@ -73677,6 +74333,14 @@ var OtelPlugin = async ({ project, client, directory, worktree }, options) => {
         }
         case "message.part.updated":
           await handleMessagePartUpdated(event, ctx);
+          break;
+        case "permission.asked":
+          await permissionHandlers.asked(event, ctx);
+          break;
+        case "permission.replied":
+          await permissionHandlers.replied(event, ctx);
+          break;
+        default:
           break;
       }
     })
