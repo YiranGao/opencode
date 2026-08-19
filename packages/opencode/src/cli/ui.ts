@@ -1,12 +1,12 @@
 import { EOL } from "os"
 import { Schema } from "effect"
-import { logo as glyphs } from "./logo"
+// import { logo as glyphs } from "./logo" // 简化版不再使用 glyphs
 
 const wordmark = [
-  `⠀                                ▄     `,
-  `█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█`,
-  `█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀`,
-  `▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀`,
+  `  _     ___  _  _   ___ __  __ ___    ___  ___   ___   ___ `,
+  ` | |   |_ _|| \| | / __|\ \/ /|_ _|  / __|/ _ \ |   \ | __|`,
+  ` | |__  | | | .' || (_ | >  <  | |  | (__| (_) || |) || _| `,
+  ` |____||___||_|\_| \___|/_/\_\|___|  \___|\___/ |___/ |___|`,
 ]
 
 export class CancelledError extends Schema.TaggedErrorClass<CancelledError>()("UICancelledError", {}) {}
@@ -46,6 +46,16 @@ export function empty() {
 }
 
 export function logo(pad?: string) {
+  const result = []
+  for (const row of wordmark) {
+    if (pad) result.push(pad)
+    result.push(row)
+    result.push(EOL)
+  }
+  return result.join("").trimEnd()
+
+  /**
+   * 以下为原版 ANSI 颜色渲染逻辑，在内网环境下不需要复杂渲染
   if (!process.stdout.isTTY && !process.stderr.isTTY) {
     const result = []
     for (const row of wordmark) {
@@ -101,6 +111,7 @@ export function logo(pad?: string) {
     result.push(EOL)
   })
   return result.join("").trimEnd()
+  */
 }
 
 export async function input(prompt: string): Promise<string> {

@@ -283,14 +283,14 @@ export function createPromptState(input: PromptInput): PromptState {
   const [shell, setShell] = createSignal(false)
   const placeholder = createMemo(() => {
     if (shell()) {
-      return new StyledText([fg(input.theme().muted)('Run a command... "git status"')])
+      return new StyledText([fg(input.theme().muted)('输入 shell 命令... "git status"')])
     }
 
     if (!input.state().first) {
       return ""
     }
 
-    return new StyledText([fg(input.theme().muted)('Ask anything... "Fix a TODO in the codebase"')])
+    return new StyledText([fg(input.theme().muted)('随便问点什么... "修复代码库中的一个 TODO"')])
   })
 
   let history = createPromptHistory(input.history)
