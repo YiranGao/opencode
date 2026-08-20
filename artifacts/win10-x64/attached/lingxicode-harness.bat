@@ -20,19 +20,12 @@ if not defined OPENCODE_DIFF_DETAIL_ENABLED set "OPENCODE_DIFF_DETAIL_ENABLED=tr
 
 REM set ENTERPRISE_API_KEY=sk-your-key-here
 
-REM ====== Deploy Financial Harness (首次自动) ======
+REM ====== Deploy Financial Harness (棣栨鑷姩) ======
 if exist "%~dp0scripts\deploy-plugins.ps1" (
     if not exist ".opencode\plugin\financial-harness.ts" (
         echo [Financial Harness] First run - deploying plugin...
         powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\deploy-plugins.ps1"
     )
 )
-
-REM ====== Inject plugin via OPENCODE_CONFIG_CONTENT ======
-powershell -NoProfile -Command ^
-  "$t=Get-Content '%~dp0config\opencode.json' -Raw|ConvertFrom-Json;" ^
-  "$t|Add-Member -NotePropertyName 'plugin' -NotePropertyValue @('%PLUGIN_URL%') -Force;" ^
-  "$j=$t|ConvertTo-Json -Compress -Depth 10;" ^
-  "[Environment]::SetEnvironmentVariable('OPENCODE_CONFIG_CONTENT',$j,'Process')"
 
 "%~dp0bin/opencode.exe" %*
