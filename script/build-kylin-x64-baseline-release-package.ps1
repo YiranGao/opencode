@@ -1,0 +1,205 @@
+<#
+.SYNOPSIS
+    打包 LINGXI CODE 麒麟 OS V10 x64 baseline 离线部署包
+.DESCRIPTION
+    将构建好的 x64 baseline 二进制（不使用 AVX2 指令，兼容
+    CPUID 暴露 avx2 但 XCR0 未启用 AVX2 执行状态的虚拟机环境）、
+    离线解析器、配置文件、启动脚本打包为可直接在内网麒麟 OS
+    上部署的 tar.gz 包。
+
+    需先运行 script/build-kylin-x64-baseline.sh 完成 baseline 编译，
+    产物位于 packages/opencode/dist/opencode-linux-x64-baseline/bin/opencode。
+.PARAMETER Target
+    构建目标类型，需与 build-kylin-x64-baseline.sh 一致。默认 linux-x64-baseline。
+.PARAMETER OutputDir
+    输出目录。默认 <project-root>/dist-offline-kylin-x64-baseline
+.EXAMPLE
+    .\build-kylin-x64-baseline-release-package.ps1
+    使用默认配置打包 baseline 版本
+#>
+
+param(
+    [ValidateSet("linux-x64-baseline")]
+    [string]$Target = "linux-x64-baseline",
+    [string]$OutputDir
+)
+
+$ErrorActionPreference = "Stop"
+$ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$BuildDir = Join-Path $ProjectRoot "packages\opencode"
+$ParsersCacheDir = Join-Path $ProjectRoot "offline-cache\parsers"
+$ArtifactDir = Join-Path $ProjectRoot "artifacts\kylin-x64-baseline\release"
+$ArtifactDirAttached = Join-Path $ProjectRoot "artifacts\kylin-x64-baseline\attached"
+
+if (-not $OutputDir) {
+    $OutputDir = Join-Path $ProjectRoot "dist-offline-kylin-x64-baseline"
+}
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  LINGXI CODE Kylin V10 Offline Packaging" -ForegroundColor Cyan
+Write-Host "  Target: $Target (baseline, no AVX2)" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+
+# ── 查找二进制 ────────────────────────────────────────
+$binary = Join-Path $BuildDir "dist\opencode-$Target\bin\opencode"
+$binaryZip = Join-Path $BuildDir "dist\opencode-$Target\bin\opencode.zip"
+$binaryBin = Join-Path $BuildDir "dist\opencode-$Target\bin"
+if (-not (Test-Path $binary)) {
+    if (-not (Test-Path $binaryZip)) {
+        Write-Error "x64 baseline binary not found: $binaryZip"
+        Write-Error "Please run first: script/build-kylin-x64-baseline.sh"
+        exit 1
+    }
+    Expand-Archive -Path $binaryZip -DestinationPath $binaryBin -Force
+    if (-not (Test-Path $binary)) {
+        Write-Error "x64 baseline binary not found: $binary"
+        exit 1
+    }
+}
+$binarySize = [math]::Round((Get-Item $binary).Length / 1MB, 1)
+Write-Host "`n  Binary found: $binary ($binarySize MB)" -ForegroundColor Gray
+
+# ── 清理输出目录 ──────────────────────────────────────
+if (Test-Path $OutputDir) {
+    Write-Host "  Cleaning output directory..." -ForegroundColor Gray
+    Remove-Item $OutputDir -Recurse -Force
+}
+New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+
+# ── 复制二进制 ────────────────────────────────────────
+Write-Host "`n[1/3] Copying binary..." -ForegroundColor Yellow
+$OutputDirBin = Join-Path $OutputDir "bin"
+New-Item -ItemType Directory -Path $OutputDirBin -Force | Out-Null
+Copy-Item $binary (Join-Path $OutputDirBin "opencode") -Force
+Write-Host "  Done." -ForegroundColor Green
+
+# ── 复制配置文件 ──────────────────────────────────────
+if (Test-Path $ArtifactDirAttached) {
+    Copy-Item -Path "$ArtifactDirAttached\*" -Destination $OutputDir -Recurse -Force
+    Write-Host "Copied attached files"
+}
+
+$otelPluginPath = Join-Path $OutputDir "config\plugins\opencode-plugin-otel.js"
+if (-not (Test-Path $otelPluginPath)) {
+    Write-Error "OpenTelemetry plugin not found: $otelPluginPath"
+    exit 1
+}
+Write-Host "  OpenTelemetry plugin found: $otelPluginPath" -ForegroundColor Green
+
+$diffDetailPluginPath = Join-Path $OutputDir "config\plugins\opencode-diff-detail.js"
+if (-not (Test-Path $diffDetailPluginPath)) {
+    Write-Error "diff-detail plugin not found: $diffDetailPluginPath"
+    exit 1
+}
+Write-Host "  diff-detail plugin found: $diffDetailPluginPath" -ForegroundColor Green
+
+$rgPath = Join-Path $OutputDirBin "rg"
+if (-not (Test-Path $rgPath)) {
+    Write-Error "ripgrep not found: $rgPath"
+    exit 1
+}
+
+Write-Host "  ripgrep found: $rgPath" -ForegroundColor Green
+
+# ── 复制解析器 ────────────────────────────────────────
+Write-Host "`n[2/3] Copying offline parsers..." -ForegroundColor Yellow
+if (Test-Path $ParsersCacheDir) {
+    Copy-Item -Path $ParsersCacheDir -Destination (Join-Path $OutputDir "parsers") -Recurse -Force
+    $parserCount = (Get-ChildItem (Join-Path $OutputDir "parsers") -Directory).Count
+    Write-Host "  Copied $parserCount parser directories." -ForegroundColor Green
+} else {
+    Write-Host "  WARNING: No offline parser cache found at $ParsersCacheDir" -ForegroundColor DarkYellow
+    Write-Host "  Run 'bun run script/offline-cache-parsers.ts' first." -ForegroundColor DarkYellow
+}
+
+# ── 打包 ──────────────────────────────────────────────
+Write-Host "`n[3/3] Creating tar.gz archive..." -ForegroundColor Yellow
+$PackageJson = Get-Content (Join-Path $BuildDir "package.json") -Encoding UTF8 | ConvertFrom-Json
+$Version = $PackageJson.version
+$tarName = "lingxicode-offline-v${Version}-kylin-x64-baseline.tar.gz"
+$tarPath = Join-Path $ArtifactDir $tarName
+
+# 确保输出目录存在
+New-Item -ItemType Directory -Path $ArtifactDir -Force | Out-Null
+
+# 尝试使用 WSL 的 tar（Windows 原生 tar 在新版 Windows 也可用）
+$wslAvailable = $false
+try {
+    $wslCheck = wsl --list --quiet 2>$null
+    if ($LASTEXITCODE -eq 0) { $wslAvailable = $true }
+} catch {
+    $wslAvailable = $false
+}
+
+# 检查 Windows 自带 tar
+$winTarAvailable = $false
+try {
+    $tarCheck = tar --version 2>$null
+    if ($LASTEXITCODE -eq 0) { $winTarAvailable = $true }
+} catch {
+    $winTarAvailable = $false
+}
+
+if ($winTarAvailable) {
+    Write-Host "  Using Windows tar..." -ForegroundColor Gray
+    Push-Location $OutputDir
+    tar -czf $tarPath .
+    Pop-Location
+} elseif ($wslAvailable) {
+    Write-Host "  Using WSL tar..." -ForegroundColor Gray
+    $wslOutputDir = (wsl wslpath "$OutputDir").Trim()
+    Push-Location $OutputDir
+    wsl tar -czf (wsl wslpath "$tarPath") -C $wslOutputDir .
+    Pop-Location
+} else {
+    Write-Host "  WARNING: No tar available. Skipping archive creation." -ForegroundColor DarkYellow
+    Write-Host "  You can manually archive the directory: $OutputDir" -ForegroundColor DarkYellow
+    $tarPath = $null
+}
+
+# 创建 SHA256
+if (Test-Path $tarPath) {
+    $runSh = Get-FileHash -Path $tarPath -Algorithm SHA256
+    $runShUnix = $runSh.Hash.ToLower() + "  " + $tarName
+    [System.IO.File]::WriteAllText(
+        (Join-Path $ArtifactDir "SHA256SUMS"),
+        $runShUnix,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+# ── 完成 ──────────────────────────────────────────────
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  Packaging SUCCESS (baseline)" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  Output dir: $OutputDir" -ForegroundColor Green
+if ($tarPath -and (Test-Path $tarPath)) {
+    $tarSize = [math]::Round((Get-Item $tarPath).Length / 1MB, 1)
+    Write-Host "  Archive:    $tarPath ($tarSize MB)" -ForegroundColor Green
+}
+Write-Host ""
+
+# 列出打包内容概览
+Write-Host "  Package contents:" -ForegroundColor Cyan
+$items = Get-ChildItem $OutputDir -Force
+foreach ($item in $items) {
+    if ($item.PSIsContainer) {
+        $count = (Get-ChildItem $item.FullName -Recurse -File).Count
+        Write-Host "    $($item.Name)/ ($count files)" -ForegroundColor Gray
+    } else {
+        $size = [math]::Round($item.Length / 1MB, 1)
+        Write-Host "    $($item.Name) ($size MB)" -ForegroundColor Gray
+    }
+}
+Write-Host ""
+Write-Host "  Deploy to Kylin OS:" -ForegroundColor Cyan
+Write-Host "    1. Copy $tarName to target machine" -ForegroundColor Gray
+Write-Host "    2. tar -xzf $tarName" -ForegroundColor Gray
+Write-Host "    3. chmod +x lingxicode.sh lingxicode-harness.sh scripts/deploy-plugins.sh bin/opencode bin/rg" -ForegroundColor Gray
+Write-Host "    4. export ENTERPRISE_API_KEY='your-key'" -ForegroundColor Gray
+Write-Host "    5. ./lingxicode.sh" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  NOTE: This package is the baseline version (without AVX2 instructions)," -ForegroundColor Cyan
+Write-Host "        suitable for virtual machines with abnormal AVX2 environments (Illegal instruction crash)" -ForegroundColor Cyan
