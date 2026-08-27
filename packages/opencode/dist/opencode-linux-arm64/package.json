@@ -1,0 +1,11 @@
+{
+  "name": "opencode-linux-arm64",
+  "version": "1.18.18",
+  "preferUnplugged": true,
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ]
+}
