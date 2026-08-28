@@ -26,10 +26,11 @@ for f in lingxicode-ubuntu_*.tar.gz; do
   rm -f "${f}"
 done
 
-if [ -f docker-commands.txt ]; then
-  echo "  删除: docker-commands.txt"
-  rm -f docker-commands.txt
-fi
+echo "清理 docker-commands-*.txt..."
+for f in docker-commands-*.txt; do
+  echo "  删除: ${f}"
+  rm -f "${f}"
+done
 shopt -u nullglob
 
 if [ "${REMOVE_IMAGES}" -eq 1 ]; then
