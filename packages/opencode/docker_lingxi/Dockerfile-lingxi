@@ -1,6 +1,4 @@
-ARG VERSION
-
-FROM ubuntu:22.04 AS base
+FROM ubuntu:22.04
 
 ARG BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
 ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=${BUN_RUNTIME_TRANSPILER_CACHE_PATH}
@@ -12,16 +10,9 @@ RUN apt-get update && \
         ripgrep && \
     rm -rf /var/lib/apt/lists/*
 
-FROM base AS build-amd64
-ARG VERSION
-COPY lingxicode-offline-${VERSION}-kylin-x64 /lingxicode
-
-FROM base AS build-arm64
-ARG VERSION
-COPY lingxicode-offline-${VERSION}-kylin-arm64 /lingxicode
-
-ARG TARGETARCH
-FROM build-${TARGETARCH}
+ARG LINGXICODE_RELEASE_DIR
+COPY ${LINGXICODE_RELEASE_DIR} /lingxicode
+RUN echo "${LINGXICODE_RELEASE_DIR}" > /lingxicode/version.txt
 
 RUN chmod -R +x /lingxicode/
 
