@@ -56,7 +56,7 @@ check_file ".opencode/tui.json" "tui.json"
 check_file ".opencode/plugin/financial-harness.ts" "Server plugin redirect"
 check_file "$FH_SRC/node_modules/@opentui/solid/package.json" "@opentui/solid"
 check_file "$FH_SRC/node_modules/solid-js/package.json" "solid-js"
-check_file "$FH_SRC/node_modules/@opentui/core-linux-x64/package.json" "@opentui/core-linux-x64"
+check_file "$FH_SRC/node_modules/@opentui/core-darwin-x64/package.json" "@opentui/core-darwin-x64"
 
 CMD_COUNT=$(ls -1 .opencode/commands/*.md 2>/dev/null | wc -l)
 echo "[OK] Commands: $CMD_COUNT files"
