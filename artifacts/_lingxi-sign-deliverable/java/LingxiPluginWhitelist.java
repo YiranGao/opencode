@@ -36,8 +36,8 @@ public final class LingxiPluginWhitelist {
      */
     public static final Set<String> ALLOWED = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
         // ── LingxiCode 1.18.18 官方发布插件 SHA256 ──
-        "d201918365a2625fdc955cbd31b40e54852f8fd19f622644590da3df57962880",  // 混淆版 lingxi-sign-auth.js      （生产用）
-        "145d35d5ef7ebd11c83919dab56f5952444a42afee6e5342e99ad5c58763d7aa"   // 明文版 lingxi-sign-auth.plain.js（调试用）
+        "d201918365a2625fdc955cbd31b40e54852f8fd19f622644590da3df57962880",  // 混淆版 lingxi-sign-auth.js      id="lingxi-sign-auth"        （生产用）
+        "b6f636801dc13b7b7f0bd25af5dec507b890ce64d8819d3a8b2fe3269e542834"   // 明文版 lingxi-sign-auth.plain.js id="lingxi-sign-auth.plain"（调试用）
         // ── 插件代码更新后，对新文件算 SHA256 追加到此集合即可 ──
     )));
 

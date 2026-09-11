@@ -139,7 +139,7 @@ let binHashCache = null
 // ═══════════════════════════════════════════════════════════════════
 
 export default {
-  id: "lingxi-sign-auth",
+  id: "lingxi-sign-auth.plain",
 
   async server(input, options = {}) {
     const secret = (options && options.secret) || DEFAULT_SECRET
