@@ -112,8 +112,7 @@
 
 ## 五、macOS ARM64 系统（Apple Silicon）
 
-> 适用 M 系列芯片 MacBook。**2026-09 实测**：WSL2 交叉编译产物（darwin-arm64）未重签可直接运行
-> （MacBook Pro M1 2020 验证通过），无需 Mac 签名环节。
+> 适用 M 系列芯片 MacBook。
 
 | 项目 | 说明 |
 | :--- | :--- |
