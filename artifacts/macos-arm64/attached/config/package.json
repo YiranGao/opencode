@@ -1,0 +1,6 @@
+{
+  "name": "config",
+  "dependencies": {
+    "@opencode-ai/plugin": "1.18.18"
+  }
+}

@@ -11,6 +11,8 @@
 - [二、麒麟 ARM64 系统](#二麒麟-arm64-系统)
 - [三、麒麟 x64 系统](#三麒麟-x64-系统)
 - [四、麒麟 x64 系统（baseline 版）](#四麒麟-x64-系统baseline-版)
+- [五、macOS ARM64 系统（Apple Silicon）](#五macos-arm64-系统apple-silicon)
+- [六、macOS x64 系统（Intel）](#六macos-x64-系统intel)
 
 ---
 
@@ -99,18 +101,56 @@
 ### 操作步骤
 
 1. 下载完整的 GitHub 工程文件。
-2. 在 **WSL2** 中进入 `<project-root>` 目录，编译 baseline 二进制（产物位于
-   `packages/opencode/dist/opencode-linux-x64-baseline/bin/opencode`）：
-
-   ```bash
-   ./script/build-kylin-x64-baseline.sh
-   ```
-
-3. 按需修改 `artifacts/kylin-x64-baseline/attached/` 目录下的配置文件与插件。
-4. 使用 **Windows PowerShell** 进入 `<project-root>` 目录，运行以下命令：
+2. 按需修改 `artifacts/kylin-x64-baseline/attached/` 目录下的配置文件与插件。
+3. 使用 **Windows PowerShell** 进入 `<project-root>` 目录，运行以下命令：
 
    ```powershell
    ./script/build-kylin-x64-baseline-release-package.ps1
+   ```
+
+---
+
+## 五、macOS ARM64 系统（Apple Silicon）
+
+> 适用 M 系列芯片 MacBook。**2026-09 实测**：WSL2 交叉编译产物（darwin-arm64）未重签可直接运行
+> （MacBook Pro M1 2020 验证通过），无需 Mac 签名环节。
+
+| 项目 | 说明 |
+| :--- | :--- |
+| **可定制文件** | `<project-root>/artifacts/macos-arm64/attached/*` |
+| **打包脚本** | `./script/build-macos-arm64-release-package.ps1` |
+| **输出版本** | `<project-root>/artifacts/macos-arm64/release/*` |
+
+### 操作步骤
+
+1. 下载完整的 GitHub 工程文件。
+2. 按需修改 `artifacts/macos-arm64/attached/` 目录下的配置文件与插件。
+3. 使用 **Windows PowerShell** 进入 `<project-root>` 目录，运行：
+
+   ```powershell
+   ./script/build-macos-arm64-release-package.ps1
+   ```
+
+---
+
+## 六、macOS x64 系统（Intel）
+
+> 适用 Intel 芯片 MacBook（2019 款均支持 AVX2，无需 baseline 版本）。
+
+| 项目 | 说明 |
+| :--- | :--- |
+| **可定制文件** | `<project-root>/artifacts/macos-x64/attached/` |
+| **打包脚本** | `./script/build-macos-x64-release-package.ps1` |
+| **输出版本** | `<project-root>/artifacts/macos-x64/release/*` |
+
+### 操作步骤
+
+1. 下载完整的 GitHub 工程文件。
+2. 按需修改 `artifacts/macos-x64/attached/` 目录下的配置文件与插件。
+3. 使用 **Windows PowerShell** 进入 `<project-root>` 目录，运行：
+
+   ```powershell
+   ./script/build-macos-x64-release-package.ps1
    ```
 
 ---
@@ -121,6 +161,8 @@
 | :--- | :--- |
 | 普通物理机 / 正常虚拟机 | 标准版（第一节至第三节） |
 | 虚拟机上运行标准版报 `Illegal instruction` 崩溃 | baseline 版（第四节） |
+| M 系列 MacBook | macos-arm64（第五节） |
+| Intel MacBook | macos-x64（第六节） |
 
 ---
 
@@ -132,3 +174,7 @@
 | 麒麟 | ARM64 | 标准 | `artifacts/kylin-arm64/attached/` | `build-kylin-arm64.sh` | `build-kylin-arm64-release-package.ps1` |
 | 麒麟 | x64 | 标准 | `artifacts/kylin-x64/attached/` | `build-kylin-x64.sh` | `build-kylin-x64-release-package.ps1` |
 | 麒麟 | x64 | baseline（无 AVX2） | `artifacts/kylin-x64-baseline/attached/` | `build-kylin-x64-baseline.sh` | `build-kylin-x64-baseline-release-package.ps1` |
+| macOS | ARM64 | 标准 | `artifacts/macos-arm64/attached/` | `build-macos-arm64.sh` | `build-macos-arm64-release-package.ps1` |
+| macOS | x64 | 标准 | `artifacts/macos-x64/attached/` | `build-macos-x64.sh` | `build-macos-x64-release-package.ps1` |
+
+---
