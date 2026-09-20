@@ -35,11 +35,13 @@ public final class LingxiNonceWhitelist {
      */
     public static final Set<String> ALLOWED = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
         // ── LingxiCode 1.18.18 官方发布真实二进制 SHA256 ──
-        // 来源: tar.gz/zip 解压后对 bin/opencode 本身计算
-        "269303e562a3310d7b79397184da8bf99dd852cf7f65124c06f00c3dff6b200f",  // kylin-x64        bin/opencode
+        // 来源: tar.gz/zip 解压后对 bin/opencode（或 bin/opencode.exe）本身计算
+        "269303e562a3310d7b79397184da8bf99dd852cf7f65124c06f00c3dff6b200f",  // kylin-x64         bin/opencode
         "0ed6aadc0bbbb4cf559760be5780708285b88049663b594f05eed87966056174",  // kylin-x64-baseline bin/opencode
-        "af89962856429edcf5f47f0b3afa8c80d2b326f5eef9ff326cb59f3d3dc323c3",  // kylin-arm64      bin/opencode
-        "641c57ef16c3de9a5ec7835fcfa726dc40cbcdf808fe8dd17ffca52c6ffe88db"   // win10-x64        bin/opencode.exe
+        "af89962856429edcf5f47f0b3afa8c80d2b326f5eef9ff326cb59f3d3dc323c3",  // kylin-arm64       bin/opencode
+        "641c57ef16c3de9a5ec7835fcfa726dc40cbcdf808fe8dd17ffca52c6ffe88db",  // win10-x64         bin/opencode.exe
+        "5ea16552791e8c450e1ef4f74b3e1ba33da027f8af02919379ecb6d84b22eec3",  // macos-arm64       bin/opencode（M 芯片）
+        "1250132b8013aa58f577adea62a1d5a4e69a57f2cac680122292418d62873eb5"   // macos-x64         bin/opencode（Intel）
         // ── 新版本发布时，对新二进制算 SHA256 追加到此集合即可，旧版本哈希可保留（向后兼容）或删除（强制升级）
     )));
 
