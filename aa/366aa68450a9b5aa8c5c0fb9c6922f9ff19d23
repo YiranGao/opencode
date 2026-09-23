@@ -1,0 +1,41 @@
+artifacts/macos-arm64/attached/lingxicode-harness.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 18
+artifacts/macos-arm64/attached/lingxicode.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 25
+artifacts/win10-x64/attached/lingxicode-harness.bat
+  s_1d96ded093fbbf::t_b6bf7c02732013 18
+artifacts/macos-x64/attached/lingxicode-harness.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 18
+artifacts/kylin-arm64/attached/lingxicode-harness.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 18
+artifacts/kylin-x64/attached/lingxicode-harness.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 18
+artifacts/macos-x64/attached/lingxicode.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 25
+artifacts/win10-x64/attached/lingxicode.bat
+  s_1d96ded093fbbf::t_b6bf7c02732013 24
+artifacts/kylin-arm64/attached/lingxicode.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 25
+artifacts/kylin-x64-baseline/attached/lingxicode-harness.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 18
+artifacts/kylin-x64-baseline/attached/lingxicode.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 25
+artifacts/kylin-x64/attached/lingxicode.sh
+  s_1d96ded093fbbf::t_b6bf7c02732013 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aa366aa68450a9b5aa8c5c0fb9c6922f9ff19d23",
+  "prompts": {},
+  "sessions": {
+    "s_1d96ded093fbbf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c864-c64a-74a2-bb44-8ce51469e01e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "happy <sxh139726845@163.com>"
+    }
+  }
+}
