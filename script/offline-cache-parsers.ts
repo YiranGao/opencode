@@ -98,31 +98,30 @@ async function main() {
 
   // Cache the tree-sitter core WASM from npm packages
   console.log(`\n[_core]`)
-  const coreWasmSearchPaths = [
-    "../node_modules/web-tree-sitter/tree-sitter.wasm",
-    "../packages/opencode/node_modules/web-tree-sitter/tree-sitter.wasm",
-    "../node_modules/.cache/web-tree-sitter/tree-sitter.wasm",
-  ]
-  let coreCached = false
-  for (const p of coreWasmSearchPaths) {
-    const resolved = path.resolve(import.meta.dirname, p)
-    if (fs.existsSync(resolved)) {
-      const coreDest = path.join(CACHE_DIR, "_core", "tree-sitter.wasm")
-      if (!fs.existsSync(coreDest)) {
+  const coreDest = path.join(CACHE_DIR, "_core", "tree-sitter.wasm")
+  // 缓存已存在时直接跳过，避免未安装依赖的副本误报 WARN
+  if (fs.existsSync(coreDest)) {
+    console.log(`  [SKIP] tree-sitter.wasm (already cached)`)
+    skipped++
+  } else {
+    const coreWasmSearchPaths = [
+      "../node_modules/web-tree-sitter/tree-sitter.wasm",
+      "../packages/opencode/node_modules/web-tree-sitter/tree-sitter.wasm",
+      "../node_modules/.cache/web-tree-sitter/tree-sitter.wasm",
+    ]
+    for (const p of coreWasmSearchPaths) {
+      const resolved = path.resolve(import.meta.dirname, p)
+      if (fs.existsSync(resolved)) {
         await fs.promises.mkdir(path.dirname(coreDest), { recursive: true })
         await fs.promises.copyFile(resolved, coreDest)
         console.log(`  [COPY] tree-sitter.wasm <- ${resolved}`)
         downloaded++
-      } else {
-        console.log(`  [SKIP] tree-sitter.wasm (already cached)`)
-        skipped++
+        break
       }
-      coreCached = true
-      break
     }
-  }
-  if (!coreCached) {
-    console.warn(`  [WARN] tree-sitter.wasm not found in node_modules. It will be bundled via Bun compile.`)
+    if (!fs.existsSync(coreDest)) {
+      console.warn(`  [WARN] tree-sitter.wasm not found in node_modules. It will be bundled via Bun compile.`)
+    }
   }
 
   // Write manifest
