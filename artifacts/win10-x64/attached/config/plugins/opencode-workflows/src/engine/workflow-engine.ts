@@ -50,6 +50,7 @@ import {
   type RunContext,
   type SubWorkflowLoader,
 } from "../api/orchestration-api"
+import type { DefaultModelResolution } from "./default-model"
 
 // ============================================================================
 // 默认配置
@@ -175,6 +176,20 @@ export interface WorkflowEngineDeps {
    * 以避免重复日志（见 design.md §6）。
    */
   logger?: WFLogger
+  /**
+   * 引擎默认模型解析（可选）：run 启动时调用一次，产出该 run 的默认模型
+   * （`"providerID/modelID"`）或 null（连清单兜底都不可用）。由装配层（index.ts）注入——
+   * 内部持 SDK client（config.get / config.providers）与 model.json 读取，并做进程级缓存。
+   * 纯解析逻辑见 {@link resolveDefaultModel}（src/engine/default-model.ts）。
+   * 未注入/抛错时 RunContext.defaultModel 缺省，agent 行为与既有版本一致。
+   */
+  resolveDefaultModel?: () => Promise<DefaultModelResolution | null>
+  /**
+   * 失败原因倒查（可选）：以 agentIndex 倒查内存日志环形缓冲中最近一条 ERROR 的
+   * 真实 reason。由装配层（index.ts memorySink）注入，Orchestration_API 的 failEntry
+   * 用它替代写死的笼统错误串。未注入/查不到时回退原串。
+   */
+  lookupFailureReason?: (agentIndex: number) => string | undefined
 }
 
 // ============================================================================
@@ -405,7 +420,30 @@ export function createWorkflowEngine(deps: WorkflowEngineDeps): WorkflowEngine {
         // 注入同步可读的 Control_Signal：指向该 run 的 ActiveRun.controlSignal。
         // pause/cancel 置位后，`agent()` 同步前导段在「下一个 agent 边界」据此短路。
         readControlSignal: () => activeRuns.get(runId)?.controlSignal ?? "none",
+        // 失败原因倒查（可选）：agent() 在 execute 返回 null 时按 agentIndex 倒查
+        // 内存日志的真实 reason 写入 journal。未注入时 failEntry 回退笼统原串。
+        lookupFailureReason: deps.lookupFailureReason,
       })
+
+      //解析引擎默认模型（首次为真实网络调用，之后进程级缓存命中）。
+      // 失败静默（run.defaultModel 缺省 → agent 请求裸发，回退既有 server 回退链行为）。
+      try {
+        const resolution = await deps.resolveDefaultModel?.()
+        if (resolution?.model) {
+          run.defaultModel = resolution.model
+          log.info(runId, "引擎默认模型解析完成", {
+            model: resolution.model,
+            source: resolution.source,
+            ...(resolution.invalidConfigModel
+              ? { invalidConfigModel: resolution.invalidConfigModel }
+              : {}),
+          })
+        }
+      } catch (error) {
+        log.warn(runId, "引擎默认模型解析失败（本次 run 将裸发请求，依赖 server 回退链）", {
+          reason: error instanceof Error ? error.message : String(error),
+        })
+      }
 
       const api = createOrchestrationApi(run, meta, { args, depth: 0 })
       const result = await execute(api)

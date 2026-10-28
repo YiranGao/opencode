@@ -31,6 +31,8 @@
 import type { Plugin, PluginInput, Hooks } from "@opencode-ai/plugin"
 import { fileURLToPath } from "node:url"
 import { dirname, isAbsolute, join, resolve } from "node:path"
+import { readFile } from "node:fs/promises"
+import { homedir } from "node:os"
 
 import type { WorkflowConfig } from "./src/types"
 import { WorkflowError } from "./src/errors"
@@ -57,9 +59,15 @@ import {
   detectWorkflowCommandMisuse,
   buildWorkflowMisuseDirective,
 } from "./src/command/command-system"
-import { coerceLevel, createWFLogger, NO_OP_LOGGER, type LogLevel, type WFLogger } from "./src/logging/wf-logger"
+import { coerceLevel, createWFLogger, NO_OP_LOGGER, type LogLevel, type LogSink, type WFLogger } from "./src/logging/wf-logger"
 import { createWorkflowCreateTool } from "./src/tools/workflow-create"
 import { createFileSink, DEFAULT_STORAGE_ROOT } from "./src/logging/file-sink"
+import { createMemorySink } from "./src/logging/memory-sink"
+import {
+  resolveDefaultModel as resolveDefaultModelPure,
+  type DefaultModelResolution,
+  type ProviderModelsInfo,
+} from "./src/engine/default-model"
 import {
   createOpenCodeBridgeSink,
   type OpenCodeLogClientPort,
@@ -375,6 +383,7 @@ export function buildLogger(
   client: PluginInput["client"] | undefined,
   logging: ResolvedLoggingConfig,
   clientKind: "v1" | "v2" = "v1",
+  extraSinks: LogSink[] = [],
 ): WFLogger {
   // File_Sink 恒定注入（R8.1）。onError 设为非抛出 no-op：日志自身写盘失败不应影响业务，
   // 也不向控制台喷错（保持装配静默）。需要探测日志健康度时可在此接入诊断回调。
@@ -395,7 +404,8 @@ export function buildLogger(
 
   const active = createWFLogger({
     minLevel: logging.level,
-    sinks: [fileSink, ...(bridge ? [bridge] : [])],
+    // extraSinks：装配层附加 Sink（如 Memory_Sink——失败原因倒查的数据源）。
+    sinks: [fileSink, ...(bridge ? [bridge] : []), ...extraSinks],
   })
 
   // 关闭开关（R8.4 / R8.5）：enabled === false → No_Op（不向任何 Sink 产生输出）；
@@ -472,6 +482,174 @@ export function makeResolvePath(
 /**
  * 在给定 SDK client 与配置上装配全部组件。导出以便 TUI 入口与测试复用同一套实例。
  */
+// ============================================================================
+// 引擎默认模型解析的 I/O 装配（数据获取 + 归一；纯解析见 src/engine/default-model.ts）
+// ============================================================================
+
+/** 窄化的 config/provider 客户端形态（v1 与 v2 SDK 的端点命名在此收拢兼容）。 */
+interface ConfigClientLike {
+  config?: {
+    get?: () => Promise<unknown>
+    providers?: () => Promise<unknown>
+  }
+  provider?: {
+    list?: (parameters?: unknown) => Promise<unknown>
+  }
+}
+
+/** 判定为普通对象（record）。 */
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+/** 解包 SDK 响应信封（`{ data, error }` 形态直取 data，裸数据原样返回）。 */
+function unwrapSdkData(res: unknown): unknown {
+  if (isRecordObject(res) && "data" in res) return res.data
+  return res
+}
+
+/** 读 server 合成配置的顶层 `model`（`"providerID/modelID"`）；不可得返回 undefined。 */
+async function fetchConfigModel(client: PluginInput["client"] | undefined): Promise<string | undefined> {
+  if (!client) return undefined
+  try {
+    const c = (client as unknown as ConfigClientLike).config
+    if (typeof c?.get !== "function") return undefined
+    const data = unwrapSdkData(await c.get()) as { model?: unknown } | undefined
+    const model = isRecordObject(data) ? data.model : undefined
+    return typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * 读 server 运行时 provider 清单并归一为纯函数输入形状。
+ * 优先 v1 `config.providers()`（含 provider 级 default 映射）；回退 v2 `provider.list()`
+ * （无 default → 该级由「第一个模型」兜底）。全部不可得返回 undefined（⑤级判定依据）。
+ */
+async function fetchProviders(
+  client: PluginInput["client"] | undefined,
+): Promise<ProviderModelsInfo[] | undefined> {
+  if (!client) return undefined
+  const c = (client as unknown as ConfigClientLike).config
+  // v1 形态：config.providers() → { providers: [{id, models}], default: { <id>: modelID } }。
+  if (typeof c?.providers === "function") {
+    try {
+      const data = unwrapSdkData(await c.providers()) as {
+        providers?: Array<{ id?: unknown; models?: unknown }>
+        default?: unknown
+      } | undefined
+      if (isRecordObject(data) && Array.isArray(data.providers)) {
+        const defaults = isRecordObject(data.default) ? data.default : {}
+        const list = data.providers
+          .filter((p) => typeof p?.id === "string")
+          .map((p) => ({
+            id: p.id as string,
+            default: typeof defaults[p.id as string] === "string" ? (defaults[p.id as string] as string) : undefined,
+            models: isRecordObject(p.models) ? Object.keys(p.models) : [],
+          }))
+        if (list.length > 0) return list
+      }
+    } catch {
+      // 落入 v2 形态重试。
+    }
+  }
+  // v2 形态：provider.list() → { all: [{id, models: Record<modelID, ...>] } }（无 default）。
+  const p = (client as unknown as ConfigClientLike).provider
+  if (typeof p?.list === "function") {
+    try {
+      const data = unwrapSdkData(await p.list()) as {
+        all?: Array<{ id?: unknown; models?: unknown }>
+      } | undefined
+      if (isRecordObject(data) && Array.isArray(data.all)) {
+        const list = data.all
+          .filter((item) => typeof item?.id === "string")
+          .map((item) => ({
+            id: item.id as string,
+            models: isRecordObject(item.models) ? Object.keys(item.models) : [],
+          }))
+        if (list.length > 0) return list
+      }
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
+}
+
+/**
+ * 读 model.json 的 recent 近期使用模型（server 端状态文件，TUI 换模型时写入），
+ * 归一为 `"providerID/modelID"` 字符串数组（新 → 旧）。文件缺失/非法/无 client 时返回 []。
+ * 供解析链 ③ 级（recent）与提示建议使用；读失败静默（recent 层缺失不阻塞解析）。
+ */
+async function readRecentModels(): Promise<string[]> {
+  try {
+    const stateDir = process.env.XDG_STATE_HOME || join(homedir(), ".local", "state")
+    const raw = await readFile(join(stateDir, "opencode", "model.json"), "utf8")
+    const parsed: unknown = JSON.parse(raw)
+    if (!isRecordObject(parsed) || !Array.isArray(parsed.recent)) return []
+    return parsed.recent
+      .filter(
+        (item): item is { providerID: string; modelID: string } =>
+          isRecordObject(item) &&
+          typeof item.providerID === "string" &&
+          typeof item.modelID === "string",
+      )
+      .map((item) => `${item.providerID}/${item.modelID}`)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 创建引擎默认模型解析器（进程级缓存）：首次调用发起真实 I/O
+ * （config.get + provider 清单 + model.json），之后整个进程复用同一结论——
+ * 修改 opencode.json 顶层 model 需重启生效（提示文案已含此语义）。
+ * 解析成功（含 null 结果）缓存；意外异常不缓存（下次 run 重试）。
+ */
+function createDefaultModelResolver(
+  client: PluginInput["client"] | undefined,
+): () => Promise<DefaultModelResolution | null> {
+  let cached: Promise<DefaultModelResolution | null> | undefined
+  return () => {
+    if (!cached) {
+      cached = (async () => {
+        const [configModel, recent, providers] = await Promise.all([
+          fetchConfigModel(client),
+          readRecentModels(),
+          fetchProviders(client),
+        ])
+        return resolveDefaultModelPure({ configModel, recent, providers })
+      })()
+    }
+    return cached
+  }
+}
+
+/**
+ * 创建失败原因倒查器：以 agentIndex 在内存日志环形缓冲（Memory_Sink）里
+ * 倒查最近一条 ERROR 日志的真实 reason（executor 的 session.create 失败 /
+ * SDK 错误 / 超时事件均带 agentIndex + reason）。超出截断上限时截断。
+ */
+function createFailureReasonLookup(memorySink: ReturnType<typeof createMemorySink>) {
+  const MAX_REASON_LENGTH = 300
+  return (agentIndex: number): string | undefined => {
+    const entries = memorySink.getEntries()
+    for (let i = entries.length - 1; i >= 0; i -= 1) {
+      const entry = entries[i]
+      if (entry.level !== "ERROR") continue
+      const extra = entry.extra
+      if (!extra) continue
+      if (typeof extra.agentIndex !== "number" || extra.agentIndex !== agentIndex) continue
+      const reason = extra.reason
+      if (typeof reason === "string" && reason.length > 0) {
+        return reason.length > MAX_REASON_LENGTH ? `${reason.slice(0, MAX_REASON_LENGTH)}…` : reason
+      }
+    }
+    return undefined
+  }
+}
+
 export function assembleWorkflows(
   client: PluginInput["client"],
   options?: Record<string, unknown>,
@@ -488,7 +666,14 @@ export function assembleWorkflows(
   // enabled 开关后，经 buildLogger 装配 File_Sink（恒定）+ OpenCode_Bridge_Sink（仅持有
   // client 时，R6.5）。enabled === false 时为 No_Op（R8.4）。同一实例注入下方四个核心模块。
   // clientKind 透传给 buildLogger，使桥接日志按 v1/v2 形态正确调用 app.log。
-  const logger = buildLogger(client, readLoggingConfig(config), clientKind)
+  // Memory_Sink（内存环形缓冲）随装配恒定注入：供「失败原因倒查」在 agent 失败时
+  // 取回 executor 记录的真实错误原因（否则 journal 只能写笼统串）。
+  const memorySink = createMemorySink({ capacity: 500 })
+  const logger = buildLogger(client, readLoggingConfig(config), clientKind, [memorySink])
+  const lookupFailureReason = createFailureReasonLookup(memorySink)
+  // 引擎默认模型解析器（进程级缓存）：经引擎 deps 在 run 启动时调用，
+  // 结论随引擎日志记录（model/source/invalidConfigModel），不向对话流注入提示。
+  const resolveDefaultModel = createDefaultModelResolver(client)
 
   // 项目根（OpenCode 启动目录）：单点解析，供 storageRoot 绝对化、ConfigLoader、受控目录复用。
   const projectRoot = process.cwd()
@@ -554,6 +739,9 @@ export function assembleWorkflows(
     controlledDirs,
     // 注入同一 logger（R8.1）：引擎记录生命周期事件（脚本加载失败 / cancel / pause / 整体超时）。
     logger,
+    // 引擎默认模型解析 + 失败原因倒查（可选注入；缺省时引擎行为与既有版本一致）。
+    resolveDefaultModel,
+    lookupFailureReason,
   })
 
   const commands = createCommandSystem({
