@@ -174,6 +174,23 @@ export interface RunContext {
   resolveConfig?: (workflowName: string) => ResolvedConfigBlock | Promise<ResolvedConfigBlock>
   /** Resume 模式下的引擎与上下文；非 resume 时为 undefined。 */
   resume?: { engine: ResumeEngine; ctx: ResumeContext }
+  /**
+   * 引擎默认模型（可选，`"providerID/modelID"` 形态）。
+   *
+   * 由 WorkflowEngine 在 start() 时经 `deps.resolveDefaultModel()` 解析注入（run 级唯一值，
+   * 见 src/engine/default-model.ts）。`agent()` 在脚本 `opts.model` 缺失时把它注入
+   * `AgentTask.defaultModel`，使请求显式带模型、不进 server 回退链。未注入（解析失败/
+   * 依赖缺失）时 agent 行为与既有版本逐字节一致。
+   */
+  defaultModel?: string
+  /**
+   * 失败原因倒查（可选）。
+   *
+   * 由装配层注入（内存日志环形缓冲，index.ts memorySink）。`agent()` 在 execute 返回 null
+   * 时以 agentIndex 倒查最近一条 ERROR 日志的真实 reason，写入 journal 的 error 字段
+   * （此前写死「agent execution failed or timed out」）。未注入/查不到时回退原串。
+   */
+  lookupFailureReason?: (agentIndex: number) => string | undefined
   /** 子 workflow 加载器（内联展开用）。 */
   loadSubWorkflow: SubWorkflowLoader
   /**
@@ -352,7 +369,8 @@ export function createOrchestrationApi(
       label,
       phaseIndex: phaseIndexOf(phaseTitle),
       phaseTitle: phaseTitle ?? "",
-      model: opts.model ?? "",
+      //运行中即显示将用的模型（脚本显式 > 引擎默认），不再恒空。
+      model: opts.model ?? run.defaultModel ?? "",
       state: "running",
       tokens: 0,
       durationMs: 0,
@@ -368,6 +386,9 @@ export function createOrchestrationApi(
       agentIndex,
       phase,
       ...(extraSystem ? { extraSystem } : {}),
+      //脚本未显式指定 model 且引擎已解析出默认模型时注入（仅 AgentTask 层，
+      // 不改写 opts——opts 原样落盘 journal 并参与 resume 比对，保持旧 run 兼容）。
+      ...(!opts.model && run.defaultModel ? { defaultModel: run.defaultModel } : {}),
       // 子 session 创建后即回填 sessionID 到 Snapshot（R 第二期），供 Monitor 实时拉取
       // 该 agent 的会话日志。回调为同步签名，落盘以 fire-and-forget 进行（写盘失败由 store 容错）。
       onSessionCreated: (idx, sessionID) => {
@@ -388,6 +409,18 @@ export function createOrchestrationApi(
     if (result === null) {
       // 超时/失败/被打断：写 result Journal（含 error）+ 标记进度 failed。
       const interrupted = signalAfter === "pause" || signalAfter === "cancel"
+      //非打断失败时倒查内存日志中该 agent 最近一条 ERROR 的真实 reason
+      // （session.create 失败 / SDK 错误 / 超时均带 reason 落日志），替代笼统串；
+      // 查不到（未注入 lookupFailureReason / 日志被环形覆盖）回退原串。
+      const lookedUp = interrupted ? undefined : run.lookupFailureReason?.(agentIndex)
+      const rawReason = lookedUp ?? "agent execution failed or timed out"
+      // server 内部 500 的归因附注（reason 为笼统的 "Unexpected server error..."，
+      // 最常见根因是顶层 model 缺失致默认模型解析失败——见 error 中间件 orDie 链路）。
+      const reason = rawReason.includes("Unexpected server error")
+        ? rawReason +
+          "（服务端内部错误——最常见原因为 opencode.json 缺顶层 model 配置，对话可用但子 Agent 全灭；" +
+          "详见 server 日志 err_* 堆栈）"
+        : rawReason
       const failEntry: JournalEntry = {
         eventType: "agent_result",
         agentIndex,
@@ -396,7 +429,7 @@ export function createOrchestrationApi(
         // 两者都含 error 字段 → resume 时均不复用、需重跑。
         error: interrupted
           ? `agent 被 ${signalAfter} 近实时打断（in-flight abort，resume 时重跑）`
-          : "agent execution failed or timed out",
+          : reason,
         durationMs: 0,
       }
       await run.store.appendJournal(run.runId, failEntry)

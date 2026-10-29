@@ -207,6 +207,15 @@ export interface AgentTask {
    */
   extraSystem?: string
   /**
+   * 引擎默认模型（`"providerID/modelID"` 形态，可选）。
+   *
+   * 由 Orchestration_API 在 `opts.model` 缺失时注入（run 启动时经 default-model
+   * 解析链产出，见 src/engine/default-model.ts），使 agent 请求**显式带 model**，
+   * 不再依赖 server 端回退链（其顶层 model 缺失/配错时可能 500 全灭）。
+   * 注意：仅注入 AgentTask（不落盘 journal、不参与 resume 比对），`opts.model` 原样保留。
+   */
+  defaultModel?: string
+  /**
    * 子 session 创建成功后的回调（R 第二期）。在「会话创建后、prompt 完成前」即触发，
    * 使上层（Orchestration_API）能在 agent 仍 running 时就拿到 sessionID 并落盘，
    * 供 Workflow Monitor 实时拉取该 agent 的会话日志。回调内异常不影响 agent 执行。
@@ -500,7 +509,8 @@ export function createAgentExecutor(config: AgentExecutorConfig): AgentExecutor 
     timeoutMs: number | null,
   ): Promise<{ output: unknown; input: number; output_tokens: number; model: string } | typeof TIMEOUT | null> {
     const schema = task.opts.schema
-    const modelOpt = parseModelOpt(task.opts.model)
+    //脚本显式 model 优先，缺失时回退引擎默认模型（defaultModel）——请求显式带 model。
+    const modelOpt = parseModelOpt(task.opts.model ?? task.defaultModel)
     const backoffs = [1000, 2000, 4000] // 指数退避序：1s / 2s / 4s（R5.1）。
     const maxAttempts = retries + 1 // retries 默认 3 → 共 4 次尝试。
 
@@ -553,7 +563,7 @@ export function createAgentExecutor(config: AgentExecutorConfig): AgentExecutor 
       const tokens = body.info.tokens ?? {}
       const input = typeof tokens.input === "number" ? tokens.input : 0
       const output_tokens = typeof tokens.output === "number" ? tokens.output : 0
-      const model = extractModel(body.info, task.opts.model ?? "")
+      const model = extractModel(body.info, task.opts.model ?? task.defaultModel ?? "")
 
       if (schema) {
         // 有 schema：读取 SDK 原生校验通过后的结构化结果（保留 schema 透传能力，R1.5）。
